@@ -1,5 +1,5 @@
 # latte_scala
-[latte-lang](https://github.com/wkgcass/Latte-lang) compiler by scala
+[latte-lang](http://latte-lang.org/) compiler by scala
 
 
 

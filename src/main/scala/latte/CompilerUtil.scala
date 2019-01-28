@@ -132,7 +132,7 @@ object CompilerUtil {
   def isValidNameChar(c: Char): Boolean =
     isValidNameStartChar(c) || Character.isDigit(c)
 
-  def isJavaValidName(str: String): Boolean = {
+  def isJavaValidName(str: String): Boolean =
     str match {
       case x if x.isEmpty => false
       case x if javaKeys.contains(x) => false
@@ -144,7 +144,6 @@ object CompilerUtil {
         true
       case _ => false
     }
-  }
 
   def isValidName(str: String): Boolean = {
     if (str.startsWith("`") && str.endsWith("`"))
@@ -204,17 +203,16 @@ object CompilerUtil {
   def isAssign(str: String): Boolean =
     str == "=" || str == "/=" || str == "*=" || str == "+=" || str == "-=" || str == "%="
 
-  def expecting(token: String, previous: Node, got: Node): Unit = {
+  def expecting(token: String, previous: Node, got: Node): Unit =
     got match {
       case null =>
         throw new Exception(s"unexpected end ${previous.lineCol}")
       case x if !x.isInstanceOf[Element] =>
-        throw UnexpectedTokenException(token,x.getClass.getSimpleName,x.lineCol)
-      case x:Element if !x.content.endsWith(token) =>
-        throw UnexpectedTokenException(token,x.content,x.lineCol)
+        throw UnexpectedTokenException(token, x.getClass.getSimpleName, x.lineCol)
+      case x: Element if !x.content.endsWith(token) =>
+        throw UnexpectedTokenException(token, x.content, x.lineCol)
       case _ =>
     }
-  }
 
   def isPackage(element: Element): Boolean = {
     if (isValidName(element.content) && element.hasNext) {
@@ -241,8 +239,7 @@ object CompilerUtil {
       if (isValidName(a))
         indexA = binOpPriority.length
       else
-        throw new IllegalArgumentException(
-          a + " is not valid two variable operator")
+        throw new IllegalArgumentException(a + " is not valid two variable operator")
     }
 
     var indexB = findTwoVarPriority(b)
@@ -250,8 +247,7 @@ object CompilerUtil {
       if (isValidName(b))
         indexB = binOpPriority.length
       else
-        throw new IllegalArgumentException(
-          b + " is not valid two variable operator")
+        throw new IllegalArgumentException(b + " is not valid two variable operator")
     }
     indexA <= indexB
   }

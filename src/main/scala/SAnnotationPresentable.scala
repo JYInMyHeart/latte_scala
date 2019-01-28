@@ -6,7 +6,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 trait SAnnotationPresentable {
-  def annos(): ListBuffer[Anno]
+  def annos(): ListBuffer[SAnno]
 }
 
 trait Value {
@@ -27,8 +27,7 @@ trait ConstantValue extends Value {
   def getByte: Array[Byte]
 }
 
-class STypeDef(val lineCol: LineCol,
-               val annos: ListBuffer[Anno]) extends SAnnotationPresentable {
+class STypeDef(val lineCol: LineCol, val annos: ListBuffer[SAnno]) extends SAnnotationPresentable {
   var pkg: String = _
   var fullName: String = ""
 
@@ -36,22 +35,43 @@ class STypeDef(val lineCol: LineCol,
     this(lineCol, ListBuffer())
   }
 
-  def isAssignableFrom(cls: STypeDef): Boolean = {
+  def isAssignableFrom(cls: STypeDef): Boolean =
     cls match {
       case null => throw new NullPointerException()
       case _: NullTypeDef =>
         !this.isInstanceOf[PrimitiveTypeDef]
       case _ => cls == this
     }
-  }
 }
 
+case class SAnno() extends Value {
+  var annoDef: SAnnoDef = _
+  var present: SAnnotationPresentable = _
+  val valueMap: mutable.HashMap[SAnnoField, Value] = mutable.HashMap()
+  val alreadyCompiledAnnotationValueMap: mutable.HashMap[String, AnyRef] = mutable.HashMap()
+
+  override def typeOf(): SAnnoDef = annoDef
+
+  override def toString: String = {
+    val sb = new StringBuilder()
+    sb.append(typeOf().fullName).append("(")
+    var isFirst = true
+    for (f <- valueMap) {
+      if (isFirst)
+        isFirst = false
+      else
+        sb.append(",")
+      sb.append(f._1.name).append("=").append(f._2)
+    }
+    sb.append(")")
+    sb.toString()
+  }
+}
 
 case class SArrayTypeDef() extends STypeDef(LineCol.SYNTHETIC) {
   var sType: STypeDef = _
   var dimension: Int = _
   fullName = if (fullName == null) rebuildFullName() else fullName
-
 
   private def rebuildFullName(): String = {
     if (null == sType) return ""
@@ -77,7 +97,6 @@ case class SArrayTypeDef() extends STypeDef(LineCol.SYNTHETIC) {
     sb.toString()
   }
 }
-
 
 case class SAnnoDef() extends STypeDef(LineCol.SYNTHETIC) {
   val annoFields: ListBuffer[SAnnoField] = ListBuffer()
@@ -105,7 +124,6 @@ case class SAnnoDef() extends STypeDef(LineCol.SYNTHETIC) {
   }
 }
 
-
 class SAnnoField() extends SMethodDef(LineCol.SYNTHETIC) {
   var sType: STypeDef = _
   var defaultValue: Value = _
@@ -117,6 +135,7 @@ class SAnnoField() extends SMethodDef(LineCol.SYNTHETIC) {
       sb.append(" default ").append(defaultValue).append(";")
     sb.toString()
   }
+
 }
 
 abstract class PrimitiveTypeDef() extends STypeDef(LineCol.SYNTHETIC)
@@ -165,7 +184,8 @@ case class DoubleTypeDef() extends PrimitiveTypeDef() {
 
   override def isAssignableFrom(cls: STypeDef): Boolean = {
     if (super.isAssignableFrom(cls)) return true
-    cls.isInstanceOf[FloatTypeDef] || cls.isInstanceOf[LongTypeDef] || FloatTypeDef.get().isAssignableFrom(cls)
+    cls.isInstanceOf[FloatTypeDef] || cls
+      .isInstanceOf[LongTypeDef] || FloatTypeDef.get().isAssignableFrom(cls)
   }
 }
 
@@ -258,7 +278,6 @@ object NullTypeDef {
   def get(): NullTypeDef = t
 }
 
-
 case class VoidType() extends STypeDef(LineCol.SYNTHETIC) {
   fullName = "void"
 }
@@ -269,11 +288,10 @@ object VoidType {
   def get(): VoidType = t
 }
 
-
 abstract class SMember(lineCol: LineCol) extends SAnnotationPresentable {
   val modifiers: ListBuffer[SModifier] = ListBuffer()
   var declaringType: STypeDef = _
-  var annos: ListBuffer[Anno] = ListBuffer()
+  var annos: ListBuffer[SAnno] = ListBuffer()
 }
 
 abstract class SInvokable(lineCol: LineCol) extends SMember(lineCol) {
@@ -284,7 +302,7 @@ abstract class SInvokable(lineCol: LineCol) extends SMember(lineCol) {
 }
 
 case class SParameter() extends LeftValue with SAnnotationPresentable {
-  val annos: ListBuffer[Anno] = ListBuffer()
+  val annos: ListBuffer[SAnno] = ListBuffer()
   var name: String = _
   var sType: STypeDef = _
   val canChange: Boolean = true
@@ -307,6 +325,7 @@ case class SMethodDef(lineCol: LineCol) extends SInvokable(lineCol) {
     val params = parameters.foldLeft("")(_ + "," + _)
     modifiers + temp + params + ")"
   }
+
 }
 
 case class SClassDef(override val lineCol: LineCol) extends STypeDef(lineCol) {
@@ -368,14 +387,13 @@ case class SInterfaceDef(override val lineCol: LineCol) extends STypeDef(lineCol
 }
 
 case class IntValue(value: Int) extends PrimitiveValue with ConstantValue {
-  override def getByte: Array[Byte] = {
+  override def getByte: Array[Byte] =
     Array(
       (value & 0xff).toByte,
       ((value & 0xff00) >> 8).toByte,
       ((value & 0xff0000) >> 16).toByte,
       ((value & 0xff000000) >> 24).toByte,
     )
-  }
 
   override def typeOf(): STypeDef = IntTypeDef.get()
 
@@ -384,7 +402,7 @@ case class IntValue(value: Int) extends PrimitiveValue with ConstantValue {
   override def hashCode(): Int = value
 
   override def equals(obj: Any): Boolean = {
-    if(obj == null || getClass != obj.getClass)
+    if (obj == null || getClass != obj.getClass)
       return false
     obj match {
       case IntValue(i) =>
@@ -395,15 +413,11 @@ case class IntValue(value: Int) extends PrimitiveValue with ConstantValue {
   }
 }
 
-case class LocalVariable(sType:STypeDef,
-                         canChange:Boolean) extends LeftValue{
+case class LocalVariable(sType: STypeDef, canChange: Boolean) extends LeftValue {
   override def typeOf(): STypeDef = sType
 }
 
-case class ExceptionTable(from: Instruction,
-                          to: Instruction,
-                          target: Instruction,
-                          sType: STypeDef)
+case class ExceptionTable(from: Instruction, to: Instruction, target: Instruction, sType: STypeDef)
 
 case class SModifier(value: Int)
 
@@ -422,4 +436,3 @@ object SModifier {
   val STRUCT = SModifier(0x0800)
   val SYNCHRONIZED = SModifier(0x0200)
 }
-

@@ -3,7 +3,7 @@ package latte
 import java.lang.annotation.ElementType
 import java.lang.reflect.{AnnotatedElement, Constructor}
 
-import latte.Ins.{InvokeSpecial, PutField, TLoad, This}
+import latte.Ins._
 import latte.SModifier.{ABSTRACT, FINAL, PUBLIC}
 
 import scala.collection.mutable
@@ -20,40 +20,328 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
     "long" -> LongTypeDef.get(),
     "char" -> CharTypeDef.get(),
     "double" -> DoubleTypeDef.get(),
-
   )
   private val originalClasses: mutable.HashMap[String, ClassStatement] = mutable.HashMap()
   private val originalInterfaces: mutable.HashMap[String, InterfaceStatement] = mutable.HashMap()
-  private val methodToStatements: mutable.HashMap[SMethodDef, ListBuffer[Statement]] = mutable.HashMap()
+  private val methodToStatements: mutable.HashMap[SMethodDef, ListBuffer[Statement]] =
+    mutable.HashMap()
   private val fileNameToImport: mutable.HashMap[String, ListBuffer[Import]] = mutable.HashMap()
   private val typeDefSet: mutable.HashSet[STypeDef] = mutable.HashSet()
+  private val annotationRecorder: mutable.HashMap[SAnno, Anno] = mutable.HashMap()
 
+  private lazy val langCastToThrowable: SMethodDef =
+    getTypeWithName("lt.lang.Lang", LineCol.SYNTHETIC)
+      .asInstanceOf[SClassDef]
+      .methods
+      .find(_.name == "castToThrowable")
+      .orNull
 
-  def parseAnnos(annos: Set[Anno], sClassDef: STypeDef, imports: ListBuffer[Import], TYPE: ElementType): Unit = ???
+  def parseAnnos(
+      annos: Set[Anno],
+      sClassDef: STypeDef,
+      imports: ListBuffer[Import],
+      TYPE: ElementType): Unit = ???
 
-  def parseParameters(params: List[VariableDef], i: Int, constructor: SConstructorDef, imports: ListBuffer[Import], bool: Boolean) = ???
+  def parseParameters(
+      params: List[VariableDef],
+      i: Int,
+      constructor: SConstructorDef,
+      imports: ListBuffer[Import],
+      bool: Boolean): Unit = {}
 
-  def parseValueFromExpression(init: Expression, typeDef: STypeDef, value: SemanticScope): Value = ???
+  def parseValueFromExpression(init: Expression, typeDef: STypeDef, value: SemanticScope): Value =
+    ???
 
-  def parseField(variableDef: VariableDef, sClassDef: STypeDef, imports: ListBuffer[Import], PARSING_CLASS: Int, bool: Boolean): Unit = ???
+  def parseField(
+      variableDef: VariableDef,
+      sClassDef: STypeDef,
+      imports: ListBuffer[Import],
+      PARSING_CLASS: Int,
+      bool: Boolean): Unit = ???
 
-  def parseMethod(stmt: MethodStatement, i: Int, sClassDef: STypeDef, lastMethod: SMethodDef, imports: ListBuffer[Import], PARSING_CLASS: Int, bool: Boolean) = ???
+  def parseMethod(
+      stmt: MethodStatement,
+      i: Int,
+      sClassDef: STypeDef,
+      lastMethod: SMethodDef,
+      imports: ListBuffer[Import],
+      PARSING_CLASS: Int,
+      bool: Boolean) = ???
 
-  def checkInterfaceCircularInheritance(i: SInterfaceDef, superInterfaces: ListBuffer[SInterfaceDef], buffer: ListBuffer[Nothing]): Unit = ???
+  def checkInterfaceCircularInheritance(
+      i: SInterfaceDef,
+      superInterfaces: ListBuffer[SInterfaceDef],
+      buffer: ListBuffer[Nothing]): Unit = ???
 
   def checkOverride(s: STypeDef) = ???
 
   def parseValueFromObject(o: AnyRef) = ???
 
-  def parseAnnoValues(annos: ListBuffer[Anno]): Unit = ???
+  def parseAnnoValues(annos: ListBuffer[SAnno]): Unit =
+    for (sAnno <- annos) {
+      val anno = annotationRecorder(sAnno)
+      val map = mutable.HashMap[SAnnoField, Value]()
+      for (f <- sAnno.typeOf().annoFields) {
+        val innerLoop = new Breaks
+        innerLoop.breakable {
+          if (anno == null) {
+            for (e <- sAnno.alreadyCompiledAnnotationValueMap) {
+              if (e._1 == f.name) {
+                val v = parseValueFromObject(e._2)
+                map += f -> v
+                innerLoop.break()
+              }
+            }
+          } else {
+            for (a <- anno.args) {
+              if (a.assignTo.name == f.name) {
+                val v = parseValueFromExpression(a.assignFrom, f.sType, null)
+                map += f -> v
+                innerLoop.break()
+              }
+            }
+          }
+        }
+        if (f.defaultValue != null)
+          map += f -> f.defaultValue
+        else
+          throw new SyntaxException(
+            f.name +
+              s" missing",
+            if (anno == null) LineCol.SYNTHETIC else anno.lineCol)
+      }
+      sAnno.valueMap ++= map
+    }
 
-  def parseStatement(statement: Statement, voidType: VoidType, constructorScope: SemanticScope, statements: ListBuffer[Instruction], exceptionTables: ListBuffer[ExceptionTable], dontParseMethod: Boolean): Unit = ???
+  private def isInt(requiredType: STypeDef, literal: NumberLiteral, lineCol: LineCol): Boolean =
+    (requiredType == null || requiredType.isInstanceOf[IntTypeDef]
+      || (requiredType.isInstanceOf[SClassDef] && requiredType.isAssignableFrom(
+        getTypeWithName("java.lang.Integer", lineCol)
+      ) && !literal.literal.contains(".")))
 
-  def parseMethod1(m: SMethodDef, statements: ListBuffer[Statement], scope: SemanticScope) = ???
+  private def isLong(requiredType: STypeDef, literal: NumberLiteral, lineCol: LineCol): Boolean =
+    (requiredType == null || requiredType.isInstanceOf[LongTypeDef]
+      || (requiredType.isInstanceOf[SClassDef] && requiredType.isAssignableFrom(
+        getTypeWithName("java.lang.Long", lineCol)
+      ) && !literal.literal.contains(".")))
+
+  private def isShort(requiredType: STypeDef, literal: NumberLiteral, lineCol: LineCol): Boolean =
+    (requiredType == null || requiredType.isInstanceOf[ShortTypeDef]
+      || (requiredType.isInstanceOf[SClassDef] && requiredType.isAssignableFrom(
+        getTypeWithName("java.lang.Short", lineCol)
+      ) && !literal.literal.contains(".")))
+
+  private def isByte(requiredType: STypeDef, literal: NumberLiteral, lineCol: LineCol): Boolean =
+    (requiredType == null || requiredType.isInstanceOf[ByteTypeDef]
+      || (requiredType.isInstanceOf[SClassDef] && requiredType.isAssignableFrom(
+        getTypeWithName("java.lang.Byte", lineCol)
+      ) && !literal.literal.contains(".")))
+
+  private def isFloat(requiredType: STypeDef, literal: NumberLiteral, lineCol: LineCol): Boolean =
+    (requiredType == null || requiredType.isInstanceOf[FloatTypeDef]
+      || (requiredType.isInstanceOf[SClassDef] && requiredType.isAssignableFrom(
+        getTypeWithName("java.lang.Float", lineCol)
+      )))
+
+  private def isDouble(requiredType: STypeDef, literal: NumberLiteral, lineCol: LineCol): Boolean =
+    (requiredType == null || requiredType.isInstanceOf[DoubleTypeDef]
+      || (requiredType.isInstanceOf[SClassDef] && requiredType.isAssignableFrom(
+        getTypeWithName("java.lang.Double", lineCol)
+      )))
+
+  private def isBool(requiredType: STypeDef, literal: NumberLiteral, lineCol: LineCol): Boolean =
+    (requiredType == null || requiredType.isInstanceOf[BoolTypeDef]
+      || (requiredType.isInstanceOf[SClassDef] && requiredType.isAssignableFrom(
+        getTypeWithName("java.lang.Boolean", lineCol)
+      )))
+
+  private def isChar(requiredType: STypeDef, literal: StringLiteral, lineCol: LineCol): Boolean = {
+    requiredType match {
+      case null =>
+        isChar(literal, lineCol, testSymbol = true)
+      case _: CharTypeDef =>
+        isChar(literal, lineCol, testSymbol = false)
+      case _: SClassDef =>
+        val characterClass = getTypeWithName("java.lang.Character", lineCol)
+        if (requiredType == characterClass)
+          return true
+        if (requiredType.isAssignableFrom(characterClass)) {
+          val stringClass = getTypeWithName("java.lang.String", lineCol)
+          if (requiredType.isAssignableFrom(stringClass)) {
+            return isChar(literal, lineCol, testSymbol = true)
+          } else {
+            return isChar(literal, lineCol, testSymbol = false)
+          }
+        }
+      case _ => return false
+    }
+    false
+  }
+
+  private def isChar(literal: StringLiteral, lineCol: LineCol, testSymbol: Boolean): Boolean = {
+    var str = literal.literal
+    str = str.substring(1)
+    str = str.substring(0, str.length - 1)
+    if (testSymbol && !literal.literal.startsWith("\'"))
+      return false
+    unescape(str, lineCol).length == 1
+  }
+
+  private def unescape(str: String, col: LineCol): String = {
+    val preResult = Array.ofDim[Char](str.length)
+    var j = 0
+    var i = 0
+    while (j < str.toCharArray.length) {
+      val c = str.charAt(i)
+      if (c == '\\') {
+        j += 1
+        val anotherChar = str.charAt(j)
+        c match {
+          case 'n' => preResult(i) = '\n'
+          case 'r' => preResult(i) = '\r'
+          case '\'' => preResult(i) = '\''
+          case '\\' => preResult(i) = '\\'
+          case '\"' => preResult(i) = '\"'
+          case 't' => preResult(i) = '\t'
+          case _ =>
+            throw new SyntaxException(s"cannot unescape \\ $anotherChar", col)
+        }
+      } else {
+        preResult(j) = c
+      }
+      j += 1
+      i += 1
+    }
+    val result = Array.ofDim[Char](i)
+    Array.copy(preResult, 0, result, 0, i)
+    new String(result)
+  }
+
+  def parseInstructionFromReturn(
+      r: Return,
+      returnType: STypeDef,
+      constructorScope: SemanticScope,
+      instructions: ListBuffer[Instruction]): Unit = ???
+
+  def parseInstructionFromIf(
+      e: IfStatement,
+      returnType: STypeDef,
+      constructorScope: SemanticScope,
+      instructions: ListBuffer[Instruction],
+      exceptionTables: ListBuffer[ExceptionTable]): Unit = ???
+
+  def parseInstructionFromWhile(
+      e: WhileStatement,
+      returnType: STypeDef,
+      constructorScope: SemanticScope,
+      instructions: ListBuffer[Instruction],
+      exceptionTables: ListBuffer[ExceptionTable]): Unit = ???
+
+  def parseInstructionFromFor(
+      e: ForStatement,
+      returnType: STypeDef,
+      constructorScope: SemanticScope,
+      instructions: ListBuffer[Instruction],
+      exceptionTables: ListBuffer[ExceptionTable]): Unit = ???
+
+  def parseInstructionFromTry(
+      e: Try,
+      returnType: STypeDef,
+      constructorScope: SemanticScope,
+      instructions: ListBuffer[Instruction],
+      exceptionTables: ListBuffer[ExceptionTable]): Unit = ???
+
+  def parseInnerMethod(e: MethodStatement, constructorScope: SemanticScope): Unit = ???
+
+  def parseStatement(
+      statement: Statement,
+      returnType: STypeDef,
+      constructorScope: SemanticScope,
+      instructions: ListBuffer[Instruction],
+      exceptionTables: ListBuffer[ExceptionTable],
+      dontParseMethod: Boolean): Unit =
+    statement match {
+      case e: Expression =>
+        val v = parseValueFromExpression(e, null, constructorScope)
+        v match {
+          case instruction: Instruction => instructions += instruction
+          case _ =>
+        }
+      case r: Return =>
+        parseInstructionFromReturn(r, returnType, constructorScope, instructions)
+      case e: IfStatement =>
+        parseInstructionFromIf(e, returnType, constructorScope, instructions, exceptionTables)
+      case e: WhileStatement =>
+        parseInstructionFromWhile(e, returnType, constructorScope, instructions, exceptionTables)
+      case e: ForStatement =>
+        parseInstructionFromFor(e, returnType, constructorScope, instructions, exceptionTables)
+      case e: Throw =>
+        var throwable = parseValueFromExpression(e.expression, null, constructorScope)
+        if (!getTypeWithName("java.lang.Throwable", LineCol.SYNTHETIC)
+            .isAssignableFrom(throwable.typeOf())) {
+          val invokeStatic = InvokeStatic(langCastToThrowable, LineCol.SYNTHETIC)
+          invokeStatic.arguments += throwable
+          throwable = invokeStatic
+        }
+        val aThrow = AThrow(throwable, statement.lineCol)
+        instructions += aThrow
+      case e: Try =>
+        parseInstructionFromTry(e, returnType, constructorScope, instructions, exceptionTables)
+      case e: MethodStatement =>
+        if (!dontParseMethod)
+          parseInnerMethod(e, constructorScope)
+      case _: StaticScope =>
+        throw new LtBug(s"unknown statement $statement")
+      case _: Pass =>
+        throw new LtBug(s"unknown statement $statement")
+      case _ =>
+        throw new LtBug(s"unknown statement $statement")
+    }
+
+  def parseMethod1(
+      m: SMethodDef,
+      statements: ListBuffer[Statement],
+      superScope: SemanticScope): Unit = {
+    if (m.statements.nonEmpty || m.modifiers.contains(SModifier.ABSTRACT)) return
+    val scope = new SemanticScope(superScope)
+    if (!m.modifiers.contains(SModifier.STATIC))
+      scope.aThis = This(scope.typeOf.orNull)
+    m.parameters.foreach(p => scope.putLeftValue(p.name, p))
+    statements.foreach(
+      parseStatement(
+        _,
+        m.returnType,
+        scope,
+        m.statements,
+        m.exceptionTables,
+        dontParseMethod = false
+      )
+    )
+  }
+
+  def selectImportClassInterface(
+      stmt: Statement,
+      imports: ListBuffer[Import],
+      classDefs: ListBuffer[ClassStatement],
+      interfaceDefs: ListBuffer[InterfaceStatement]): Unit =
+    stmt match {
+      case i: Import =>
+        imports += i
+      case c: ClassStatement =>
+        classDefs += c
+      case i: InterfaceStatement =>
+        interfaceDefs += i
+      case _ =>
+        throw UnexpectedTokenException(
+          "class/interface definition or import",
+          stmt.toString,
+          stmt.lineCol)
+    }
 
   def parse: mutable.HashSet[STypeDef] = {
     val fileNameToClassDef: mutable.HashMap[String, ListBuffer[ClassStatement]] = mutable.HashMap()
-    val fileNameToInterfaceDef: mutable.HashMap[String, ListBuffer[InterfaceStatement]] = mutable.HashMap()
+    val fileNameToInterfaceDef: mutable.HashMap[String, ListBuffer[InterfaceStatement]] =
+      mutable.HashMap()
     val fileNameToPackageName: mutable.HashMap[String, String] = mutable.HashMap()
     mapOfStatements.foreach { x =>
       val imports: ListBuffer[Import] = ListBuffer()
@@ -75,11 +363,11 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
             case p: PackageDeclare =>
               pkg = p.pkg.pkg.replace("::", ".") + "."
             case _ =>
-            //              selectImportClassInterface(stmt, imports, classDefs, interfaceDefs)
+              selectImportClassInterface(stmt, imports, classDefs, interfaceDefs)
           }
           while (statementIterator.hasNext) {
             val stmt = statementIterator.next()
-            //            selectImportClassInterface(stmt, imports, classDefs, interfaceDefs)
+            selectImportClassInterface(stmt, imports, classDefs, interfaceDefs)
           }
         } else {
           loop.break()
@@ -89,27 +377,38 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
       imports.+=:(
         Import(
           List(
-            ImportDetail(PackageRef(
-              if (pkg.endsWith("."))
-                pkg.substring(0, pkg.length - 1).replace(".", "::")
-              else
-                pkg, LineCol.SYNTHETIC
-            ),
+            ImportDetail(
+              PackageRef(
+                if (pkg.endsWith("."))
+                  pkg.substring(0, pkg.length - 1).replace(".", "::")
+                else
+                  pkg,
+                LineCol.SYNTHETIC
+              ),
               null,
               importAll = true)
-          ), LineCol.SYNTHETIC
+          ),
+          LineCol.SYNTHETIC
         )
       )
 
       imports += Import(
-        List(ImportDetail(
-          PackageRef("java::lang", LineCol.SYNTHETIC), null, true
-        )), LineCol.SYNTHETIC
+        List(
+          ImportDetail(
+            PackageRef("java::lang", LineCol.SYNTHETIC),
+            null,
+            true
+          )),
+        LineCol.SYNTHETIC
       )
       imports += Import(
-        List(ImportDetail(
-          PackageRef("lt::lang", LineCol.SYNTHETIC), null, true
-        )), LineCol.SYNTHETIC
+        List(
+          ImportDetail(
+            PackageRef("lt::lang", LineCol.SYNTHETIC),
+            null,
+            true
+          )),
+        LineCol.SYNTHETIC
       )
 
       fileNameToPackageName += x._1 -> pkg
@@ -146,9 +445,11 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
             case "pro" => None
             case "pkg" => None
             case _ =>
-              throw UnexpectedTokenException("valid modifier for class (val|abs)", m.toString, m.lineCol)
+              throw UnexpectedTokenException(
+                "valid modifier for class (val|abs)",
+                m.toString,
+                m.lineCol)
           }
-
 
         c.modifiers.map(getModifier).foreach {
           case Some(xx) => sClassDef.modifiers += xx
@@ -172,7 +473,9 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
         sInterfaceDef.modifiers += ABSTRACT
 
         if (i.modifiers.exists(_.modifier != "abs"))
-          throw new UnexpectedTokenException(s"valid modifier for interface (abs) ${i.modifiers.toString()}", i.lineCol)
+          throw new UnexpectedTokenException(
+            s"valid modifier for interface (abs) ${i.modifiers.toString()}",
+            i.lineCol)
 
         types += interfaceName -> sInterfaceDef
         originalInterfaces += interfaceName -> i
@@ -192,7 +495,8 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
           var superWithoutInvocationAccess: Iterator[Access] = null
           if (c.superWithOutInvocation != null) {
             if (c.superWithOutInvocation.isEmpty) {
-              sClassDef.parent = getTypeWithName("java.lang.Object", LineCol.SYNTHETIC).asInstanceOf[SClassDef]
+              sClassDef.parent =
+                getTypeWithName("java.lang.Object", LineCol.SYNTHETIC).asInstanceOf[SClassDef]
             } else {
               superWithoutInvocationAccess = c.superWithOutInvocation.toIterator
               val mightBeClassAccess = superWithoutInvocationAccess.next()
@@ -202,9 +506,12 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
                   sClassDef.parent = s
                 case s: SInterfaceDef =>
                   sClassDef.superInterfaces += s
-                  sClassDef.parent = getTypeWithName("java.lang.Object", c.lineCol).asInstanceOf[SClassDef]
+                  sClassDef.parent =
+                    getTypeWithName("java.lang.Object", c.lineCol).asInstanceOf[SClassDef]
                 case _ =>
-                  throw new SyntaxException(mightBeClassAccess.toString + " is not class or interface", mightBeClassAccess.lineCol)
+                  throw new SyntaxException(
+                    mightBeClassAccess.toString + " is not class or interface",
+                    mightBeClassAccess.lineCol)
               }
             }
           } else {
@@ -214,7 +521,9 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
               case s: SClassDef =>
                 sClassDef.parent = s
               case _ =>
-                throw new SyntaxException(access.toString + "is not class or interface", access.lineCol)
+                throw new SyntaxException(
+                  access.toString + "is not class or interface",
+                  access.lineCol)
             }
             superWithoutInvocationAccess = c.superWithOutInvocation.iterator
           }
@@ -226,7 +535,9 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
               case s: SInterfaceDef =>
                 sClassDef.superInterfaces += s
               case _ =>
-                throw new SyntaxException(interfaceAccess.toString + "is not interface", interfaceAccess.lineCol)
+                throw new SyntaxException(
+                  interfaceAccess.toString + "is not interface",
+                  interfaceAccess.lineCol)
             }
           }
 
@@ -242,10 +553,12 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
             constructor.declaringType = sClassDef
 
             var hasAccessModifier = false
-            if (c.modifiers.exists(x => x.modifier == "pub"
-              || x.modifier == "pri"
-              || x.modifier == "pro"
-              || x.modifier == "pkg"))
+            if (c.modifiers.exists(
+                x =>
+                  x.modifier == "pub"
+                    || x.modifier == "pri"
+                    || x.modifier == "pro"
+                    || x.modifier == "pkg"))
               hasAccessModifier = true
             if (!hasAccessModifier)
               constructor.modifiers += SModifier.PUBLIC
@@ -259,7 +572,10 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
                 case "pro" => Some(SModifier.PROTECTED)
                 case "pkg" => None
                 case _ =>
-                  throw UnexpectedTokenException("valid modifier for class (val|abs)", m.toString, m.lineCol)
+                  throw UnexpectedTokenException(
+                    "valid modifier for class (val|abs)",
+                    m.toString,
+                    m.lineCol)
               }
 
             c.modifiers.foreach { mm =>
@@ -277,14 +593,18 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
               val invoke = InvokeSpecial(This(sClassDef), lastConstructor, LineCol.SYNTHETIC)
               constructor.parameters.foreach(invoke.arguments += _)
               val paramOfLast = lastConstructor.parameters
-              invoke.arguments += parseValueFromExpression(c.params(i).init, paramOfLast.last.typeOf(), null)
+              invoke.arguments += parseValueFromExpression(
+                c.params(i).init,
+                paramOfLast.last.typeOf(),
+                null)
               constructor.statements += invoke
             }
             lastConstructor = constructor
 
           }
 
-          c.params.foreach(parseField(_, sClassDef, imports, SemanticProcessor.PARSING_CLASS, false))
+          c.params.foreach(
+            parseField(_, sClassDef, imports, SemanticProcessor.PARSING_CLASS, false))
 
           val staticScopes: ListBuffer[StaticScope] = ListBuffer()
           c.statements.foreach {
@@ -297,7 +617,14 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
               generateIndex = stmt.params.takeWhile(_.init == null).length
               var lastMethod: SMethodDef = null
               for (i <- stmt.params.size until generateIndex by -1) {
-                parseMethod(stmt, i, sClassDef, lastMethod, imports, SemanticProcessor.PARSING_CLASS, false)
+                parseMethod(
+                  stmt,
+                  i,
+                  sClassDef,
+                  lastMethod,
+                  imports,
+                  SemanticProcessor.PARSING_CLASS,
+                  false)
                 lastMethod = sClassDef.methods.last
                 methodToStatements += lastMethod -> ListBuffer(stmt.body: _*)
               }
@@ -313,7 +640,14 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
                 generateIndex = stmt.params.takeWhile(_.init == null).length
                 var lastMethod: SMethodDef = null
                 for (i <- stmt.params.size until generateIndex by -1) {
-                  parseMethod(stmt, i, sClassDef, lastMethod, imports, SemanticProcessor.PARSING_CLASS, true)
+                  parseMethod(
+                    stmt,
+                    i,
+                    sClassDef,
+                    lastMethod,
+                    imports,
+                    SemanticProcessor.PARSING_CLASS,
+                    true)
                   lastMethod = sClassDef.methods.last
                   methodToStatements += lastMethod -> ListBuffer(stmt.body: _*)
                 }
@@ -323,14 +657,14 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
         }
 
         for (interfaceDef <- interfaceDefs) {
-          val sInterfaceDef: SInterfaceDef = types(pkg + interfaceDef.name).asInstanceOf[SInterfaceDef]
+          val sInterfaceDef: SInterfaceDef =
+            types(pkg + interfaceDef.name).asInstanceOf[SInterfaceDef]
           for (access <- interfaceDef.superInterfaces) {
             val superInterface = getTypeWithAccess(access, imports).asInstanceOf[SInterfaceDef]
             sInterfaceDef.superInterfaces += superInterface
           }
 
           parseAnnos(interfaceDef.annos, sInterfaceDef, imports, ElementType.TYPE)
-
 
           val staticScopes: ListBuffer[StaticScope] = ListBuffer()
           interfaceDef.statements.foreach {
@@ -343,11 +677,18 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
               generateIndex = stmt.params.takeWhile(_.init == null).length
               var lastMethod: SMethodDef = null
               for (i <- stmt.params.size until generateIndex by -1) {
-                parseMethod(stmt, i, sInterfaceDef, lastMethod, imports, SemanticProcessor.PARSING_INTERFACE, false)
+                parseMethod(
+                  stmt,
+                  i,
+                  sInterfaceDef,
+                  lastMethod,
+                  imports,
+                  SemanticProcessor.PARSING_INTERFACE,
+                  false)
                 lastMethod = sInterfaceDef.methods.last
                 methodToStatements += lastMethod -> ListBuffer(stmt.body: _*)
               }
-            case stmt@_ =>
+            case stmt @ _ =>
               throw new SyntaxException("interfaces don't have initiators", stmt.lineCol)
           }
 
@@ -360,7 +701,14 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
                 generateIndex = stmt.params.takeWhile(_.init == null).length
                 var lastMethod: SMethodDef = null
                 for (i <- stmt.params.size until generateIndex by -1) {
-                  parseMethod(stmt, i, sInterfaceDef, lastMethod, imports, SemanticProcessor.PARSING_INTERFACE, true)
+                  parseMethod(
+                    stmt,
+                    i,
+                    sInterfaceDef,
+                    lastMethod,
+                    imports,
+                    SemanticProcessor.PARSING_INTERFACE,
+                    true)
                   lastMethod = sInterfaceDef.methods.last
                   methodToStatements += lastMethod -> ListBuffer(stmt.body: _*)
                 }
@@ -383,7 +731,7 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
         }
       case i: SInterfaceDef =>
         checkInterfaceCircularInheritance(i, i.superInterfaces, ListBuffer())
-      case t@_ =>
+      case t @ _ =>
         throw new IllegalArgumentException("wrong STypeDefType " + t.getClass)
     }
 
@@ -435,7 +783,6 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
 
           }
           case _ =>
-
         }
       }
     }
@@ -485,7 +832,8 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
           assert(constructorToFillStatements != null)
           val constructorScope = new SemanticScope(scope)
           constructorScope.aThis = This(sTypeDef)
-          constructorToFillStatements.parameters.foreach(x => constructorScope.putLeftValue(x.name, x))
+          constructorToFillStatements.parameters.foreach(x =>
+            constructorScope.putLeftValue(x.name, x))
           var parent = sClassDef.parent
           var invokeSpecial: InvokeSpecial = null
           if (astClass.superWithInvocation == null) {
@@ -504,7 +852,8 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
               val innerLoop = new Breaks
               innerLoop.breakable {
                 if (cons.parameters.size == astClass.superWithInvocation.args.size) {
-                  invokeSpecial = InvokeSpecial(This(sClassDef), cons, astClass.superWithInvocation.lineCol)
+                  invokeSpecial =
+                    InvokeSpecial(This(sClassDef), cons, astClass.superWithInvocation.lineCol)
                   val parameters = cons.parameters
                   val args = astClass.superWithInvocation.args
                   parameters.indices.foreach { i =>
@@ -519,7 +868,9 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
           }
 
           if (invokeSpecial == null)
-            throw new SyntaxException(s"no suitable super constructor to invoke in $sClassDef", sClassDef.lineCol)
+            throw new SyntaxException(
+              s"no suitable super constructor to invoke in $sClassDef",
+              sClassDef.lineCol)
           constructorToFillStatements.statements += invokeSpecial
 
           val fieldLoop = new Breaks
@@ -529,8 +880,11 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
               if (f == null)
                 throw new LtBug("f shouldn't be null")
 
-              val putField = PutField(f, constructorScope.aThis,
-                new TLoad(param, constructorScope, LineCol.SYNTHETIC), LineCol.SYNTHETIC)
+              val putField = PutField(
+                f,
+                constructorScope.aThis,
+                new TLoad(param, constructorScope, LineCol.SYNTHETIC),
+                LineCol.SYNTHETIC)
               constructorToFillStatements.statements += putField
             }
           }
@@ -555,16 +909,19 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
 
           for (statement <- astClass.statements) {
             if (statement.isInstanceOf[StaticScope]) {
-              statement.asInstanceOf[StaticScope].statements.foreach(
-                parseStatement(
-                  _,
-                  VoidType.get(),
-                  staticScope,
-                  sClassDef.staticStatements,
-                  sClassDef.staticExceptionTable,
-                  dontParseMethod = true
+              statement
+                .asInstanceOf[StaticScope]
+                .statements
+                .foreach(
+                  parseStatement(
+                    _,
+                    VoidType.get(),
+                    staticScope,
+                    sClassDef.staticStatements,
+                    sClassDef.staticExceptionTable,
+                    dontParseMethod = true
+                  )
                 )
-              )
             }
           }
         }
@@ -572,9 +929,7 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
           val astInterface = originalInterfaces(sInterfaceDef.fullName)
           parseAnnoValues(sInterfaceDef.annos)
           val scope = new SemanticScope(sInterfaceDef)
-          sInterfaceDef.methods.foreach(x =>
-            parseMethod1(x, methodToStatements(x), scope)
-          )
+          sInterfaceDef.methods.foreach(x => parseMethod1(x, methodToStatements(x), scope))
 
           val staticScope = new SemanticScope(scope)
           astInterface.statements.foreach(
@@ -593,21 +948,25 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
       }
     }
 
-
     typeDefSet
   }
 
-  def getTypeWithAccess(mightBeClassAccess: Access, imports: ListBuffer[Import]): STypeDef = {
+  def getTypeWithAccess(mightBeClassAccess: Access, imports: ListBuffer[Import]): STypeDef =
     null
-  }
 
-  def getFieldsAndMethodsFromClass(cls: Class[_], s: STypeDef, fields: ListBuffer[SFieldDef], methods: ListBuffer[SMethodDef]): Unit = ???
+  def getFieldsAndMethodsFromClass(
+      cls: Class[_],
+      s: STypeDef,
+      fields: ListBuffer[SFieldDef],
+      methods: ListBuffer[SMethodDef]): Unit = ???
 
-  def getParameterFromClassArray(getParameterTypes: Array[Class[_]], constructorDef: SConstructorDef): Unit = ???
+  def getParameterFromClassArray(
+      getParameterTypes: Array[Class[_]],
+      constructorDef: SConstructorDef): Unit = ???
 
   def getModifierFromMember(con: Constructor[_], constructorDef: SConstructorDef): Unit = ???
 
-  def getTypeWithName(str: String, lineCol: LineCol): STypeDef = {
+  def getTypeWithName(str: String, lineCol: LineCol): STypeDef =
     if (types.contains(str)) {
       types(str)
     } else {
@@ -657,9 +1016,9 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
             case s: SClassDef =>
               getSuperInterfaceFromClass(cls, s.superInterfaces)
               if (cls != classOf[Object]) {
-                s.parent = getTypeWithName(cls.getSuperclass.getName, lineCol).asInstanceOf[SClassDef]
+                s.parent =
+                  getTypeWithName(cls.getSuperclass.getName, lineCol).asInstanceOf[SClassDef]
               }
-
 
               getFieldsAndMethodsFromClass(cls, s, s.fields, s.methods)
 
@@ -680,39 +1039,30 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
                 s.annoFields += annoField
               }
             case _ =>
-
           }
           typeDef
         }
-      }
-      catch {
-        case e: Exception =>
+      } catch {
+        case _: Exception =>
           throw new SyntaxException("undefined class", lineCol)
       }
     }
-  }
 
+  private def getAnnotationFromAnnotatedElement(
+      elem: AnnotatedElement,
+      presentable: SAnnotationPresentable): Unit = {}
 
-  private def getAnnotationFromAnnotatedElement(elem: AnnotatedElement, presentable: SAnnotationPresentable): Unit = {
+  private def getModifierFromClass(cls: Class[_], modifiers: ListBuffer[SModifier]): Unit = {}
 
-  }
+  private def getSuperInterfaceFromClass(
+      cls: Class[_],
+      superInterfaces: ListBuffer[SInterfaceDef]) = {}
 
-  private def getModifierFromClass(cls: Class[_], modifiers: ListBuffer[SModifier]): Unit = {
-
-  }
-
-  private def getSuperInterfaceFromClass(cls: Class[_], superInterfaces: ListBuffer[SInterfaceDef]) = {
-
-  }
-
-
-  private def putNameAndTypeDef(sTypeDef: STypeDef,
-                                lineCol: LineCol): Unit = {
+  private def putNameAndTypeDef(sTypeDef: STypeDef, lineCol: LineCol): Unit =
     if (types.contains(sTypeDef.fullName))
       throw new SyntaxException(s"duplicate type names ${sTypeDef.fullName}", lineCol)
     else
       types += sTypeDef.fullName -> sTypeDef
-  }
 
   def getClassNameFromAccess(access: Access): String = {
     var pre: String = ""
@@ -738,9 +1088,7 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
     true
   }
 
-
 }
-
 
 object SemanticProcessor {
   val PARSING_CLASS = 0

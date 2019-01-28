@@ -461,19 +461,19 @@ case class Parser(root: ElementStartNode) {
                           throw UnexpectedTokenException("param def", stmt.toString, stmt.lineCol)
                       }
                     }
-                    nextNode(false)
-                    current match {
-                      case e: Element => {
-                        val rightP = e.content
-                        if (rightP == ")")
-                          nextNode(true)
-                        else
-                          throw UnexpectedTokenException(")", rightP, current.lineCol)
+                      nextNode(false)
+                      current match {
+                        case e: Element => {
+                          val rightP = e.content
+                          if (rightP == ")")
+                            nextNode(true)
+                          else
+                            throw UnexpectedTokenException(")", rightP, current.lineCol)
+                        }
+                        case _ =>
+                          throw UnexpectedTokenException(")", current.toString, current.lineCol)
                       }
-                      case _ =>
-                        throw UnexpectedTokenException(")", current.toString, current.lineCol)
-                    }
-                  case e: Element => {
+                    case e: Element => {
                       expecting(")", e.previous, e)
                       params = List()
                       nextNode(true)
@@ -666,8 +666,8 @@ case class Parser(root: ElementStartNode) {
     }
     current match {
       case e: EndingNode
-          if e.next.isInstanceOf[Element] && (e.next.asInstanceOf[Element].content == "catch"
-            || e.next.asInstanceOf[Element].content == "finally") => {
+        if e.next.isInstanceOf[Element] && (e.next.asInstanceOf[Element].content == "catch"
+          || e.next.asInstanceOf[Element].content == "finally") => {
         nextNode(false)
       }
       case _ =>
@@ -941,8 +941,8 @@ case class Parser(root: ElementStartNode) {
   }
 
   def parseMethodDefVariables(
-      variableList: ListBuffer[VariableDef],
-      names: HashSet[String]): Unit = {
+                               variableList: ListBuffer[VariableDef],
+                               names: HashSet[String]): Unit = {
     nextNode(false)
     expecting("(", current.previous, current)
     nextNode(false)
@@ -1164,7 +1164,7 @@ case class Parser(root: ElementStartNode) {
                 annosIsEmpty()
                 modifiersIsEmpty()
                 if (parsedExps
-                    .empty() || (isParsingMap && parsedExps.size() <= 1))
+                  .empty() || (isParsingMap && parsedExps.size() <= 1))
                   parseArrayExp()
                 else
                   parseIndexAccess()
@@ -1183,8 +1183,8 @@ case class Parser(root: ElementStartNode) {
                     case c: Element =>
                       expecting(")", c.previous, c)
                       if (!parsedExps.empty() && parsedExps
-                          .peek()
-                          .isInstanceOf[Access]) {
+                        .peek()
+                        .isInstanceOf[Access]) {
                         val access = parsedExps.pop().asInstanceOf[Access]
                         val invocation =
                           Invocation(access, List[Expression](), access.lineCol)
@@ -1204,8 +1204,8 @@ case class Parser(root: ElementStartNode) {
                           parseTry = false)
                       if (statements.nonEmpty) {
                         if (!parsedExps.empty() && parsedExps
-                            .peek()
-                            .isInstanceOf[Access]) {
+                          .peek()
+                          .isInstanceOf[Access]) {
                           val access = parsedExps.pop().asInstanceOf[Access]
                           val args = statements.map(_.asInstanceOf[Expression])
                           val invocation =
@@ -1305,8 +1305,8 @@ case class Parser(root: ElementStartNode) {
         opArgs :+= getExp(false)
         while (current.isInstanceOf[EndingNode]
           && current
-            .asInstanceOf[EndingNode]
-            .nodeType == EndingNode.STRONG) {
+          .asInstanceOf[EndingNode]
+          .nodeType == EndingNode.STRONG) {
           val tmp = new Stack[String]()
           while (!binVarOps.empty()) tmp.push(binVarOps.pop())
           nextNode(false)
@@ -1408,11 +1408,11 @@ case class Parser(root: ElementStartNode) {
   }
 
   def parseElemStart(
-      startNode: ElementStartNode,
-      addUsedNames: Boolean,
-      names: Set[String],
-      parseMap: Boolean,
-      parseTry: Boolean): List[Statement] = {
+                      startNode: ElementStartNode,
+                      addUsedNames: Boolean,
+                      names: Set[String],
+                      parseMap: Boolean,
+                      parseTry: Boolean): List[Statement] = {
     val parser = Parser(startNode)
     if (addUsedNames) {
       parser.addUsedVarNames(usedVarNames)
@@ -1541,7 +1541,7 @@ case class Parser(root: ElementStartNode) {
         nextNode(false)
         nextNode(true)
       }
-      parseExpression()
+        parseExpression()
     }
   }
 

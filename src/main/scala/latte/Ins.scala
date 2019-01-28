@@ -6,7 +6,7 @@ import scala.collection.mutable.ListBuffer
 object Ins {
 
   case class ANewArray(arrayType: SArrayTypeDef, componentType: STypeDef, count: IntValue)
-      extends Value {
+    extends Value {
     val initValues: ListBuffer[Value] = ListBuffer()
 
     override def typeOf(): STypeDef = arrayType
@@ -19,7 +19,7 @@ object Ins {
   case class AThrow(exception: Value, lineCol: LineCol) extends Instruction
 
   case class Cast(sType: STypeDef, value: Value, caseMode: Int, lineCol: LineCol)
-      extends Value
+    extends Value
       with Instruction {
     override def typeOf(): STypeDef = sType
   }
@@ -47,7 +47,7 @@ object Ins {
   }
 
   case class CheckCast(theValueToCheck: Value, requiredType: STypeDef, lineCol: LineCol)
-      extends Instruction
+    extends Instruction
       with Value {
     override def typeOf(): STypeDef = requiredType
   }
@@ -63,7 +63,7 @@ object Ins {
   }
 
   case class GetField(field: SFieldDef, lineCol: LineCol, value: Value)
-      extends Value
+    extends Value
       with Instruction {
     override def typeOf(): STypeDef = field.typeOf()
   }
@@ -87,39 +87,39 @@ object Ins {
   }
 
   case class InvokeDynamic(
-      bootstrapMethod: SInvokable,
-      methodName: String,
-      args: ListBuffer[Value],
-      returnType: STypeDef,
-      indyType: Int,
-      override val lineCol: LineCol)
-      extends Invoke(bootstrapMethod, lineCol) {}
+                            bootstrapMethod: SInvokable,
+                            methodName: String,
+                            args: ListBuffer[Value],
+                            returnType: STypeDef,
+                            indyType: Int,
+                            override val lineCol: LineCol)
+    extends Invoke(bootstrapMethod, lineCol) {}
 
   class InvokeWithTarget(target: Value, invokable: SInvokable, lineCol: LineCol)
-      extends Invoke(invokable, lineCol)
+    extends Invoke(invokable, lineCol)
       with Instruction
       with Value {}
 
   case class InvokeSpecial(
-      target: Value,
-      override val invokable: SInvokable,
-      override val lineCol: LineCol)
-      extends InvokeWithTarget(target, invokable, lineCol) {}
+                            target: Value,
+                            override val invokable: SInvokable,
+                            override val lineCol: LineCol)
+    extends InvokeWithTarget(target, invokable, lineCol) {}
 
   case class InvokeInterface(
-      target: Value,
-      override val invokable: SInvokable,
-      override val lineCol: LineCol)
-      extends InvokeWithTarget(target, invokable, lineCol) {}
+                              target: Value,
+                              override val invokable: SInvokable,
+                              override val lineCol: LineCol)
+    extends InvokeWithTarget(target, invokable, lineCol) {}
 
   case class InvokeStatic(override val invokable: SInvokable, override val lineCol: LineCol)
-      extends Invoke(invokable, lineCol) {}
+    extends Invoke(invokable, lineCol) {}
 
   case class InvokeVirtual(
-      target: Value,
-      override val invokable: SInvokable,
-      override val lineCol: LineCol)
-      extends InvokeWithTarget(target, invokable, lineCol) {}
+                            target: Value,
+                            override val invokable: SInvokable,
+                            override val lineCol: LineCol)
+    extends InvokeWithTarget(target, invokable, lineCol) {}
 
   case class LogicAnd(b1: Value, b2: Value, lineCol: LineCol) extends Value with Instruction {
     override def typeOf(): STypeDef = BoolTypeDef.get()
@@ -149,12 +149,14 @@ object Ins {
   case class New(constructor: SConstructorDef, lineCol: LineCol) extends Value with Instruction {
 
     val args: ListBuffer[Value] = ListBuffer()
+
     override def typeOf(): STypeDef = constructor.declaringType
   }
 
   case class NewArray(count: IntValue, mode: Int, storeMode: Int, sType: STypeDef) extends Value {
 
     val initValues: ListBuffer[Value] = ListBuffer()
+
     override def typeOf(): STypeDef = sType
   }
 
@@ -177,7 +179,7 @@ object Ins {
   }
 
   case class OneVarOp(value: Value, op: Int, sType: STypeDef, lineCol: LineCol)
-      extends Value
+    extends Value
       with Instruction {
     override def typeOf(): STypeDef = sType
   }
@@ -196,15 +198,16 @@ object Ins {
   }
 
   case class PutField(field: SFieldDef, obj: Value, value: Value, lineCol: LineCol)
-      extends Instruction {}
+    extends Instruction {}
 
   case class PutStatic(field: SFieldDef, value: Value, lineCol: LineCol) extends Instruction {}
 
   case class TALoad(arr: Value, index: Value, modeValue: Int, lineCol: LineCol)
-      extends Value
+    extends Value
       with Instruction {
 
     var mode: Int = modeValue
+
     def this(arr: Value, index: Value, lineCol: LineCol) = {
       this(arr, index, 0, lineCol)
       val sType = arr.typeOf().asInstanceOf[SArrayTypeDef].sType
@@ -237,7 +240,7 @@ object Ins {
   }
 
   case class TLoad(value: LeftValue, var mode: Int, var index: Int, lineCol: LineCol)
-      extends Value
+    extends Value
       with Instruction {
     def this(value: LeftValue, scope: SemanticScope, lineCol: LineCol) = {
       this(value, 0, 0, lineCol)

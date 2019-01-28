@@ -62,7 +62,7 @@ case class Anno(anno: Access, args: List[Assignment], lineCol: LineCol) extends 
 }
 
 case class Assignment(assignTo: Access, op: String, assignFrom: Expression, lineCol: LineCol)
-    extends Expression {
+  extends Expression {
   override def hashCode(): Int = {
     var result = assignTo.hashCode()
     result = 31 * result + op.hashCode
@@ -89,7 +89,7 @@ case class Assignment(assignTo: Access, op: String, assignFrom: Expression, line
   *
   */
 abstract class Literal(val literalType: Int, val literal: String, val lineCol: LineCol)
-    extends Expression {
+  extends Expression {
   override def hashCode(): Int = {
     var result = literalType
     val h = if (literal == null) 0 else literal.hashCode
@@ -118,21 +118,21 @@ object Literal {
   *
   */
 case class NumberLiteral(override val literal: String, override val lineCol: LineCol)
-    extends Literal(Literal.NUMBER, literal, lineCol)
+  extends Literal(Literal.NUMBER, literal, lineCol)
 
 /**
   * boolLiteral
   *
   */
 case class BoolLiteral(override val literal: String, override val lineCol: LineCol)
-    extends Literal(Literal.BOOL, literal, lineCol)
+  extends Literal(Literal.BOOL, literal, lineCol)
 
 /**
   * stringLiteral
   *
   */
 case class StringLiteral(override val literal: String, override val lineCol: LineCol)
-    extends Literal(Literal.STRING, literal, lineCol)
+  extends Literal(Literal.STRING, literal, lineCol)
 
 /**
   * type
@@ -236,14 +236,14 @@ case class AsType(exp: Expression, access: Access, lineCol: LineCol) extends Exp
 }
 
 case class MethodStatement(
-    name: String,
-    modifiers: Set[Modifier],
-    returnType: Access,
-    params: ListBuffer[VariableDef],
-    annos: Set[Anno],
-    body: ListBuffer[Statement],
-    lineCol: LineCol)
-    extends Definition {
+                            name: String,
+                            modifiers: Set[Modifier],
+                            returnType: Access,
+                            params: ListBuffer[VariableDef],
+                            annos: Set[Anno],
+                            body: ListBuffer[Statement],
+                            lineCol: LineCol)
+  extends Definition {
 
   override def hashCode(): Int = {
     var result = if (name == null) 0 else name.hashCode()
@@ -408,7 +408,7 @@ case class ArrayExp(list: List[Expression], lineCol: LineCol) extends Expression
   *
   */
 case class Lambda(params: List[VariableDef], statements: List[Statement], lineCol: LineCol)
-    extends Expression {
+  extends Expression {
 
   override def hashCode(): Int = {
     val result = if (params != null) params.hashCode else 0
@@ -540,7 +540,7 @@ case class IfStatement(ifs: List[IfPair], lineCol: LineCol) extends Statement {
   *
   */
 case class ForStatement(name: String, exp: Expression, body: List[Statement], lineCol: LineCol)
-    extends Statement {
+  extends Statement {
 
   override def hashCode(): Int = {
     var result = if (name == null) 0 else name.hashCode()
@@ -570,11 +570,11 @@ case class ForStatement(name: String, exp: Expression, body: List[Statement], li
   *
   */
 case class WhileStatement(
-    condition: Expression,
-    statements: List[Statement],
-    doWhile: Boolean,
-    lineCol: LineCol)
-    extends Statement {
+                           condition: Expression,
+                           statements: List[Statement],
+                           doWhile: Boolean,
+                           lineCol: LineCol)
+  extends Statement {
   override def hashCode(): Int = {
     var result = if (condition == null) 0 else condition.hashCode()
     result = 31 * result + (if (statements == null) 0 else statements.hashCode())
@@ -703,15 +703,15 @@ case class StaticScope(statements: List[Statement], lineCol: LineCol) extends St
   *
   */
 case class ClassStatement(
-    name: String,
-    modifiers: Set[Modifier],
-    params: List[VariableDef],
-    superWithInvocation: Invocation,
-    superWithOutInvocation: List[Access],
-    annos: Set[Anno],
-    statements: List[Statement],
-    lineCol: LineCol)
-    extends Statement {
+                           name: String,
+                           modifiers: Set[Modifier],
+                           params: List[VariableDef],
+                           superWithInvocation: Invocation,
+                           superWithOutInvocation: List[Access],
+                           annos: Set[Anno],
+                           statements: List[Statement],
+                           lineCol: LineCol)
+  extends Statement {
 
   override def hashCode(): Int = {
     var result = if (name == null) 0 else name.hashCode()
@@ -719,7 +719,7 @@ case class ClassStatement(
     result = 31 * result + (if (params == null) 0 else params.hashCode())
     result = 31 * result + (if (superWithInvocation == null) 0 else superWithInvocation.hashCode())
     result = 31 * result + (if (superWithOutInvocation == null) 0
-                            else superWithOutInvocation.hashCode())
+    else superWithOutInvocation.hashCode())
     result = 31 * result + (if (annos == null) 0 else annos.hashCode())
     result = 31 * result + (if (statements == null) 0 else statements.hashCode())
     result
@@ -784,12 +784,12 @@ case class ClassStatement(
   *
   */
 case class Try(
-    statements: List[Statement],
-    catches: List[Catch],
-    varName: String,
-    fin: List[Statement],
-    lineCol: LineCol)
-    extends Statement {
+                statements: List[Statement],
+                catches: List[Catch],
+                varName: String,
+                fin: List[Statement],
+                lineCol: LineCol)
+  extends Statement {
   override def hashCode(): Int = {
     var result = if (statements == null) 0 else statements.hashCode()
     result = 31 * result + (if (catches == null) 0 else catches.hashCode())
@@ -817,7 +817,7 @@ case class Try(
   *
   */
 case class Catch(exceptionTypes: List[Access], statements: List[Statement], lineCol: LineCol)
-    extends Statement {
+  extends Statement {
   override def hashCode(): Int = {
     val result = if (exceptionTypes == null) 0 else exceptionTypes.hashCode()
     31 * result + (if (statements == null) 0 else statements.hashCode())
@@ -865,13 +865,13 @@ case class Throw(expression: Expression, lineCol: LineCol) extends Statement {
 trait Definition extends Statement
 
 case class VariableDef(
-    name: String,
-    modifiers: Set[Modifier],
-    var vType: Access,
-    var init: Expression,
-    annos: Set[Anno],
-    lineCol: LineCol)
-    extends Definition
+                        name: String,
+                        modifiers: Set[Modifier],
+                        var vType: Access,
+                        var init: Expression,
+                        annos: Set[Anno],
+                        lineCol: LineCol)
+  extends Definition
     with Expression {
   override def hashCode(): Int = {
     var result = name.hashCode
@@ -900,13 +900,13 @@ case class VariableDef(
   *
   */
 case class InterfaceStatement(
-    name: String,
-    modifiers: Set[Modifier],
-    superInterfaces: List[Access],
-    annos: Set[Anno],
-    statements: List[Statement],
-    lineCol: LineCol)
-    extends Statement {
+                               name: String,
+                               modifiers: Set[Modifier],
+                               superInterfaces: List[Access],
+                               annos: Set[Anno],
+                               statements: List[Statement],
+                               lineCol: LineCol)
+  extends Statement {
 
   override def hashCode(): Int = {
     var result = if (name == null) 0 else name.hashCode()
@@ -973,7 +973,7 @@ trait Operation extends Expression {
   *
   */
 case class UnaryOneVariableOperation(operator: String, exp: Expression, lineCol: LineCol)
-    extends Operation {
+  extends Operation {
   override def expressions(): List[Expression] = List(exp)
 
   override def invokeOn(): Int = 0
@@ -1003,7 +1003,7 @@ case class UnaryOneVariableOperation(operator: String, exp: Expression, lineCol:
   *
   */
 case class OneVariableOperation(operator: String, exp: Expression, lineCol: LineCol)
-    extends Operation {
+  extends Operation {
   override def expressions(): List[Expression] = List(exp)
 
   override def invokeOn(): Int = 0
@@ -1033,11 +1033,11 @@ case class OneVariableOperation(operator: String, exp: Expression, lineCol: Line
   *
   */
 case class TwoVariableOperation(
-    operator: String,
-    exp1: Expression,
-    exp2: Expression,
-    lineCol: LineCol)
-    extends Operation {
+                                 operator: String,
+                                 exp1: Expression,
+                                 exp2: Expression,
+                                 lineCol: LineCol)
+  extends Operation {
   override def expressions(): List[Expression] = List(exp1, exp2)
 
   override def invokeOn(): Int = 0

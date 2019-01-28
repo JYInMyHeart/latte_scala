@@ -251,7 +251,104 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
       instructions: ListBuffer[Instruction],
       exceptionTables: ListBuffer[ExceptionTable]): Unit = ???
 
-  def parseInnerMethod(e: MethodStatement, constructorScope: SemanticScope): Unit = ???
+  def parseInnerMethod(e: MethodStatement, scope: SemanticScope): SMethodDef = {
+    if (scope.parent == null)
+      throw new LtBug("scope.parent should not be null.")
+    if (scope.innerMethodMap.contains(e.name))
+      throw new SyntaxException("duplicate inner method name", e.lineCol)
+    if (e.modifiers.nonEmpty)
+      throw new SyntaxException("inner method cannot have modifiers", e.lineCol)
+    if (e.annos.nonEmpty)
+      throw new SyntaxException("inner method cannot have annotations", e.lineCol)
+
+    for (v <- e.params) {
+      if (scope.getLeftValue(v.name).orNull != null)
+        throw new SyntaxException(s"${v.name} is already used.", v.lineCol)
+      if (v.init != null)
+        throw new SyntaxException("parametes of inner methods cannot have default value", v.lineCol)
+    }
+
+    val methods =
+      scope.typeOf.orNull match {
+        case s: SClassDef => s.methods
+        case s: SInterfaceDef => s.methods
+      }
+
+    var generatedMethodName = e.name + "$Latte$InnerMethod"
+    var enable = true
+    var i = 0
+    while (enable) {
+      val innerLoop = new Breaks
+      innerLoop.breakable {
+        val tmpName = generatedMethodName + i
+        for (m <- methods) {
+          if (m.name == tmpName) {
+            i += 1
+            innerLoop.break()
+          }
+        }
+      }
+      enable = false
+    }
+    generatedMethodName += i
+    val name = e.name
+    var paramCount = e.params.size
+    val localVariable = scope.getLocalVariables
+    val param4Locals = ListBuffer[VariableDef]()
+    localVariable.foreach { x =>
+      val k = x._1
+      val v = x._2
+      val variable = VariableDef(
+        k,
+        Set(),
+        Access(
+          PackageRef(v.pkg, LineCol.SYNTHETIC),
+          if (v.fullName.contains("."))
+            v.fullName.substring(v.fullName.lastIndexOf('.') + 1)
+          else
+            v.fullName,
+          LineCol.SYNTHETIC
+        ),
+        null,
+        Set(),
+        LineCol.SYNTHETIC
+      )
+      param4Locals += variable
+    }
+
+    val newMethodDef = MethodStatement(
+      generatedMethodName,
+      Set(),
+      e.returnType,
+      e.params,
+      Set(),
+      e.body,
+      e.lineCol
+    )
+    newMethodDef.params ++= param4Locals
+
+    parseMethod(
+      newMethodDef,
+      newMethodDef.params.size,
+      scope.typeOf.orNull,
+      null,
+      fileNameToImport(newMethodDef.lineCol.fileName),
+      scope.typeOf.orNull match {
+        case _: SClassDef => SemanticProcessor.PARSING_CLASS
+        case _ => SemanticProcessor.PARSING_INTERFACE
+      },
+      scope.aThis == null
+    )
+    val m = methods.last
+    m.modifiers -= SModifier.PUBLIC
+    m.modifiers -= SModifier.PROTECTED
+    m.modifiers.reverse.+=(SModifier.PRIVATE)
+    m.modifiers.reverse
+
+    scope.addMethodRef(name, MethodRecorder(m, paramCount))
+    parseMethod1(m, newMethodDef.body, scope.parent)
+    m
+  }
 
   def parseStatement(
       statement: Statement,

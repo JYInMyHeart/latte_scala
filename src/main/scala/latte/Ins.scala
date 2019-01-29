@@ -272,4 +272,55 @@ object Ins {
     override def typeOf(): STypeDef = sTypeDef
   }
 
+
+  case class TReturn(value: Value,
+                     returnIns: Int,
+                     lineCol: LineCol) extends Instruction
+
+  object TReturn {
+    val Return = 0xb1
+    val AReturn = 0xb0
+    val DReturn = 0xaf
+    val FReturn = 0xae
+    val IReturn = 0xac
+    val LReturn = 0xad
+  }
+
+  case class TStore(leftValue: LeftValue,
+                    newValue: Value,
+                    lineCol: LineCol) extends Instruction {
+
+    import TStore._
+
+    var mode: Int = _
+    var index: Int = _
+
+    def this(leftValue: LeftValue,
+             newValue: Value,
+             scope: SemanticScope,
+             lineCol: LineCol) = {
+      this(leftValue, newValue, lineCol)
+
+
+      newValue.typeOf() match {
+        case _: IntTypeDef => mode = Istore
+        case i if IntTypeDef.get().isAssignableFrom(i) => mode = Istore
+        case _: FloatTypeDef => mode = Fstore
+        case _: LongTypeDef => mode = Lstore
+        case _: DoubleTypeDef => mode = Dstore
+        case _: BoolTypeDef => mode = Istore
+        case _ => mode = Astore
+      }
+      index = scope.getIndex(leftValue).getOrElse(0)
+    }
+  }
+
+  object TStore {
+    val Astore = 0x3a
+    val Dstore = 0x39
+    val Fstore = 0x38
+    val Lstore = 0x37
+    val Istore = 0x36
+  }
+
 }

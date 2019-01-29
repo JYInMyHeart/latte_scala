@@ -330,8 +330,38 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
   def parseInstructionFromReturn(
                                   r: Return,
                                   returnType: STypeDef,
-                                  constructorScope: SemanticScope,
-                                  instructions: ListBuffer[Instruction]): Unit = ???
+                                  scope: SemanticScope,
+                                  instructions: ListBuffer[Instruction]): Unit = {
+    var tReturn: TReturn = null
+    if (r.exp == null)
+      tReturn = TReturn(null, TReturn.Return, r.lineCol)
+    else {
+      val v = parseValueFromExpression(r.exp, returnType, scope)
+      val sType = v.typeOf()
+
+      def insType(t: STypeDef) =
+        t match {
+          case i if (i == IntTypeDef.get()
+            || i == ShortTypeDef.get()
+            || i == ByteTypeDef.get()
+            || i == BoolTypeDef.get()
+            || i == CharTypeDef.get()) =>
+            TReturn.IReturn
+          case i if i == LongTypeDef.get() =>
+            TReturn.LReturn
+          case i if i == FloatTypeDef.get() =>
+            TReturn.FReturn
+          case i if i == DoubleTypeDef.get() =>
+            TReturn.DReturn
+          case _ =>
+            TReturn.AReturn
+        }
+
+      val ins = insType(sType)
+      tReturn = TReturn(v, ins, r.lineCol)
+    }
+    instructions += tReturn
+  }
 
   def parseInstructionFromIf(
                               e: IfStatement,

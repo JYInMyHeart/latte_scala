@@ -275,7 +275,7 @@ object CompilerUtil {
     true
   }
 
-  def isModifier(str: String) =
+  def isModifier(str: String): Boolean =
     modifiers.contains(str)
 
   def checkMethodDef(elem: Element): Int = {
@@ -284,58 +284,49 @@ object CompilerUtil {
       var nodeAfterRightPar: Node = null
       val n1 = getNextNode(elem)
       n1 match {
-        case n: Element => {
+        case n: Element =>
           val p = n.content
           if (p == "(") {
             val n2 = getNextNode(n1)
             n2 match {
-              case nn2: ElementStartNode => {
+              case _: ElementStartNode =>
                 val n3 = getNextNode(n2)
                 n3 match {
-                  case e: Element => {
+                  case e: Element =>
                     if (e.content == ")") {
                       nodeAfterRightPar = getNextNode(n3)
                     }
-                  }
                   case _ =>
                 }
-              }
-              case nn2: Element => {
+              case nn2: Element =>
                 if (nn2.content == ")") {
                   nodeAfterRightPar = getNextNode(n2)
                 }
-              }
               case _ =>
             }
           }
-        }
         case _ =>
       }
       if (nodeAfterRightPar != null) {
         nodeAfterRightPar match {
-          case n: ElementStartNode => {
+          case _: ElementStartNode =>
             return METHOD_DEF_NORMAL
-          }
-          case n: Element => {
+          case n: Element =>
             val s = n.content
             s match {
-              case ":" => {
+              case ":" =>
                 return METHOD_DEF_TYPE
-              }
-              case "=" => {
+              case "=" =>
                 val nn = getNextNode(nodeAfterRightPar)
                 nn match {
-                  case e: Element => {
+                  case e: Element =>
                     if (e.content == "...") {
                       return METHOD_DEF_EMPTY
                     } else {
                       return METHOD_DEF_ONE_STMT
                     }
-                  }
                 }
-              }
             }
-          }
         }
       }
     }

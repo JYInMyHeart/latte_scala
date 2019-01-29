@@ -37,13 +37,13 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
       .orNull
 
   def parseAnnos(annos: Set[Anno],
-                 sClassDef: STypeDef,
+                 sClassDef: SAnnotationPresentable,
                  imports: ListBuffer[Import],
                  TYPE: ElementType): Unit = ???
 
   def parseParameters(params: List[VariableDef],
                       i: Int,
-                      constructor: SConstructorDef,
+                      constructor: SInvokable,
                       imports: ListBuffer[Import],
                       bool: Boolean): Unit = {}
 
@@ -54,7 +54,7 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
                   variableDef: VariableDef,
                   sClassDef: STypeDef,
                   imports: ListBuffer[Import],
-                  PARSING_CLASS: Int,
+                  mode: Int,
                   bool: Boolean): Unit = ???
 
   def parseMethod(
@@ -63,8 +63,103 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
                    sClassDef: STypeDef,
                    lastMethod: SMethodDef,
                    imports: ListBuffer[Import],
-                   PARSING_CLASS: Int,
-                   bool: Boolean) = ???
+                   mode: Int,
+                   isStatic: Boolean): Unit = {
+    val methodDef = SMethodDef(stmt.lineCol)
+    methodDef.name = stmt.name
+    methodDef.declaringType = sClassDef
+    methodDef.returnType =
+      if (stmt.returnType == null)
+        getTypeWithName("java.lang.Object", stmt.lineCol)
+      else
+        getTypeWithAccess(stmt.returnType, imports)
+    parseParameters(stmt.params.toList, i, methodDef, imports, bool = false)
+    var hasAccessModifier =
+      stmt.modifiers.exists(x => x.modifier == "pub"
+        || x.modifier == "pri"
+        || x.modifier == "pkg"
+        || x.modifier == "pro")
+    if (hasAccessModifier)
+      methodDef.modifiers += SModifier.PUBLIC
+
+    def sModifier(m: Modifier, mode: Int, stmt: MethodStatement): Option[SModifier] = m.modifier match {
+      case "pub" => Some(SModifier.PUBLIC)
+      case "pri" => if (mode == SemanticProcessor.PARSING_INTERFACE) None else Some(SModifier.PRIVATE)
+      case "pro" => if (mode == SemanticProcessor.PARSING_INTERFACE) None else Some(SModifier.PROTECTED)
+      case "pkg" if mode == SemanticProcessor.PARSING_INTERFACE => None
+      case "val" => Some(SModifier.FINAL)
+      case "abs" => if (stmt.body.nonEmpty) None else Some(SModifier.ABSTRACT)
+      case _ => None
+    }
+
+    stmt.modifiers.foreach { m =>
+      sModifier(m, mode, stmt) match {
+        case Some(x) => methodDef.modifiers += x
+        case None => throw new SyntaxException("invalid modifier", m.lineCol)
+      }
+    }
+    if (isStatic)
+      methodDef.modifiers += SModifier.STATIC
+    if (mode == SemanticProcessor.PARSING_INTERFACE
+      && !methodDef.modifiers.contains(SModifier.ABSTRACT)
+      && stmt.body.isEmpty) {
+      methodDef.modifiers += SModifier.ABSTRACT
+    }
+
+    parseAnnos(stmt.annos, methodDef, imports, ElementType.METHOD)
+
+    val methods: ListBuffer[SMethodDef] = ListBuffer()
+
+    (mode, sClassDef) match {
+      case (SemanticProcessor.PARSING_CLASS, t: SClassDef) =>
+        methods ++= t.methods
+      case (SemanticProcessor.PARSING_INTERFACE, t: SInterfaceDef) =>
+        methods ++= t.methods
+      case _ =>
+        throw new LtBug(s"invalid mode $mode")
+    }
+
+    for (builtMethod <- methods) {
+      if (builtMethod.name == methodDef.name) {
+        if (builtMethod.parameters.size == methodDef.parameters.size) {
+          val size = methodDef.parameters.size
+          val builtParam = builtMethod.parameters
+          val current = methodDef.parameters
+          var passCheck = false
+          for (in <- 0 until size) {
+            if (builtParam(i).typeOf() != current(in).typeOf())
+              passCheck = true
+          }
+          if (!passCheck)
+            throw new SyntaxException(s"method signatrue check failed on $methodDef", stmt.lineCol)
+        }
+      }
+    }
+
+    if (lastMethod != null) {
+      var invoke: InvokeWithTarget = null
+      if (lastMethod.modifiers.contains(SModifier.PRIVATE))
+        invoke = InvokeSpecial(This(methodDef.declaringType), lastMethod, LineCol.SYNTHETIC)
+      else
+        invoke = InvokeVirtual(This(methodDef.declaringType), lastMethod, LineCol.SYNTHETIC)
+
+      invoke.arguments ++= methodDef.parameters
+
+      val lastParams = lastMethod.parameters
+      invoke.arguments += parseValueFromExpression(
+        stmt.params(i).init, lastParams.last.typeOf(), null
+      )
+      methodDef.statements += invoke
+    }
+
+    (mode, sClassDef) match {
+      case (SemanticProcessor.PARSING_CLASS, t: SClassDef) =>
+        t.methods += methodDef
+      case (SemanticProcessor.PARSING_INTERFACE, t: SInterfaceDef) =>
+        t.methods += methodDef
+      case _ =>
+    }
+  }
 
   def checkInterfaceCircularInheritance(i: SInterfaceDef,
                                         superInterfaces: ListBuffer[SInterfaceDef],

@@ -296,7 +296,7 @@ abstract class SMember(lineCol: LineCol) extends SAnnotationPresentable {
 
 abstract class SInvokable(lineCol: LineCol) extends SMember(lineCol) {
   val parameters: ListBuffer[SParameter] = ListBuffer()
-  val returnType: STypeDef = null
+  var returnType: STypeDef = null
   val statements: ListBuffer[Instruction] = ListBuffer()
   val exceptionTables: ListBuffer[ExceptionTable] = ListBuffer()
 }
@@ -349,7 +349,7 @@ case class SFieldDef(lineCol: LineCol) extends SMember(lineCol) with LeftValue {
 }
 
 case class SConstructorDef(lineCol: LineCol) extends SInvokable(lineCol) {
-  override val returnType: VoidType = VoidType.get()
+  returnType = VoidType.get()
 }
 
 case class SInterfaceDef(override val lineCol: LineCol) extends STypeDef(lineCol) {

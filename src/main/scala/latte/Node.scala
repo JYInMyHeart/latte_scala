@@ -2,16 +2,13 @@ package latte
 
 import java.util
 
-case class LineCol(fileName: String,
-                   line: Int,
-                   column: Int)
+case class LineCol(fileName: String, line: Int, column: Int)
 
 object LineCol {
   val SYNTHETIC: LineCol = LineCol(null, 0, 0)
 }
 
-case class PairEntry(key: String,
-                     startNode: ElementStartNode)
+case class PairEntry(key: String, startNode: ElementStartNode)
 
 case class Args() {
   var fileName: String = _
@@ -51,9 +48,7 @@ abstract class Node() {
   def toString(indent: Int): String
 }
 
-case class EndingNode(nodeType: Int,
-                      arg: Args) extends Node(arg) {
-
+case class EndingNode(nodeType: Int, arg: Args) extends Node(arg) {
 
   override def toString(indent: Int): String = {
     var sb = ""
@@ -78,8 +73,7 @@ object EndingNode {
   val WEAK = 1
 }
 
-case class Element(var content: String,
-                   arg: Args) extends Node(arg) {
+case class Element(var content: String, arg: Args) extends Node(arg) {
 
   def checkWhetherIsValidName(): Unit = {
     if (CompilerUtil.isValidName(content))
@@ -106,13 +100,11 @@ case class Element(var content: String,
 
   override def toString: String = content
 
-
   var isValidName: Boolean = _
 }
 
 case class ElementStartNode(arg: Args, indent: Int) extends Node(arg) {
   var linkNode: Node = _
-
 
   override def equals(obj: Any): Boolean = {
     if (obj == null || getClass != obj.getClass) return false
@@ -133,5 +125,3 @@ case class ElementStartNode(arg: Args, indent: Int) extends Node(arg) {
     buffer
   }
 }
-
-

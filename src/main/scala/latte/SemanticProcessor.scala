@@ -89,9 +89,260 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
       constructor.parameters += param
     }
 
-  def boxPrimitive(value: Value, lineCol: LineCol): _root_.latte.Value = ???
+  def boxPrimitive(primitive: Value, lineCol: LineCol): InvokeStatic = {
+    assert(primitive.typeOf().isInstanceOf[PrimitiveTypeDef])
 
-  def parseValueFromInvocation(exp: Invocation, scope: SemanticScope): Value = ???
+    def generateInvokeStatic(sType: String, sTypeDef: PrimitiveTypeDef): InvokeStatic = {
+      val aByte = getTypeWithName(s"java.lang.$sType", lineCol).asInstanceOf[SClassDef]
+      val valueOf: SMethodDef = aByte.methods
+        .find(x =>
+          x.name == "valueOf" && x.parameters.size == 1 && x.parameters.head.sType == sTypeDef)
+        .orNull
+      if (valueOf == null)
+        throw new LtBug(s"java.lang.$sType.valueOf(${sType.toLowerCase}) should exist")
+      val invokeStatic = InvokeStatic(valueOf, lineCol)
+      invokeStatic.arguments += primitive
+      invokeStatic
+    }
+
+    primitive.typeOf() match {
+      case _: ByteTypeDef => generateInvokeStatic("Byte", ByteTypeDef.get())
+      case _: BoolTypeDef => generateInvokeStatic("Boolean", BoolTypeDef.get())
+      case _: CharTypeDef => generateInvokeStatic("Char", CharTypeDef.get())
+      case _: DoubleTypeDef => generateInvokeStatic("Double", DoubleTypeDef.get())
+      case _: FloatTypeDef => generateInvokeStatic("Float", FloatTypeDef.get())
+      case _: IntTypeDef => generateInvokeStatic("Int", IntTypeDef.get())
+      case _: LongTypeDef => generateInvokeStatic("Long", LongTypeDef.get())
+      case _: ShortTypeDef => generateInvokeStatic("Short", ShortTypeDef.get())
+      case _ =>
+        throw new LtBug("primitive can only be byte/boolean/char/double/float/int/short/long")
+    }
+  }
+
+  def findMethodFromTypeWithArguements(
+      lineCol: LineCol,
+      name: String,
+      argList: List[Value],
+      value: STypeDef,
+      typeOf: STypeDef,
+      FIND_MODE_ANY: Int,
+      methodsToInvoke: ListBuffer[SMethodDef],
+      checkSuper: Boolean) = ???
+
+  def isGetFieldAtRuntime(target: Value): Boolean = ???
+
+  def parseValueFromInvocation(exp: Invocation, scope: SemanticScope): Value = {
+    assert(scope.typeOf.orNull.isInstanceOf[SClassDef])
+    val argList = for (arg <- exp.args) yield parseValueFromExpression(arg, null, scope)
+    val methodsToInvoke: ListBuffer[SMethodDef] = ListBuffer()
+    var innerMethod: MethodRecorder = null
+    var target: Value = null
+
+    val imports = fileNameToImport(exp.lineCol.fileName)
+    val access = exp.access
+    if (access.expression == null) {
+      val r = scope.innerMethodMap(access.name)
+      if (null != r) {
+        val m = r.method
+        if (r.paramCount == argList.size) {
+          val inc = m.parameters.size - r.paramCount
+          var canUse = true
+          for (i <- 0 until r.paramCount) {
+            val pType = m.parameters(i + inc).typeOf()
+            val aType = argList(i).typeOf()
+            if (!pType.isAssignableFrom(aType))
+              canUse = false
+          }
+          if (canUse)
+            innerMethod = r
+        }
+      }
+      findMethodFromTypeWithArguements(
+        access.lineCol,
+        access.name,
+        argList,
+        if (scope.aThis == null) scope.typeOf.orNull else scope.aThis.typeOf(),
+        scope.typeOf.orNull,
+        SemanticProcessor.FIND_MODE_ANY,
+        methodsToInvoke,
+        checkSuper = true
+      )
+
+      if (methodsToInvoke.isEmpty) {
+        for (im <- imports) {
+          val innerLoop = new Breaks
+          innerLoop.breakable {
+            for (detail <- im.importDetails) {
+              if (methodsToInvoke.nonEmpty) innerLoop.break()
+              if (detail.importAll && detail.pkg == null) {
+                val sType = getTypeWithAccess(detail.access, imports)
+                findMethodFromTypeWithArguements(
+                  access.lineCol,
+                  access.name,
+                  argList,
+                  null,
+                  sType,
+                  SemanticProcessor.FIND_MODE_STATIC,
+                  methodsToInvoke,
+                  checkSuper = true
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+    var doInvokeSpecial = false
+    if (methodsToInvoke.isEmpty) {
+      if (access.expression != null) {
+        access.expression match {
+          case access1: Access if access1.name == "this" =>
+            if (access1.expression == null) {
+              findMethodFromTypeWithArguements(
+                access.lineCol,
+                access.name,
+                argList,
+                if (scope.aThis == null) scope.typeOf.orNull else scope.aThis.typeOf(),
+                scope.typeOf.orNull,
+                SemanticProcessor.FIND_MODE_STATIC,
+                methodsToInvoke,
+                checkSuper = true
+              )
+            } else if (access1.expression.isInstanceOf[Access]) {
+              doInvokeSpecial = true
+              val sType = getTypeWithAccess(access1.expression.asInstanceOf[Access], imports)
+              if (!sType.isAssignableFrom(scope.typeOf.orNull))
+                throw new SyntaxException(
+                  "invokespecial type should be assignable from current class",
+                  access1.lineCol)
+              findMethodFromTypeWithArguements(
+                access.lineCol,
+                access.name,
+                argList,
+                if (scope.aThis == null) scope.typeOf.orNull else scope.aThis.typeOf(),
+                sType,
+                SemanticProcessor.FIND_MODE_NON_STATIC,
+                methodsToInvoke,
+                checkSuper = false
+              )
+            } else
+              throw new SyntaxException(
+                "`Type` in Type.this.methodName should be Class/Interface name",
+                access1.lineCol)
+          case _ =>
+            if (!access.expression.isInstanceOf[PackageRef]) {
+              var isValue = true
+              var throwableWhenTryValue: Throwable = null
+              try {
+                target = parseValueFromExpression(access.expression, null, scope)
+              } catch {
+                case e: LtBug =>
+                  isValue = false
+                  throwableWhenTryValue = e
+                case e: SyntaxException =>
+                  isValue = false
+                  throwableWhenTryValue = e
+              }
+              if (target == null) isValue = false
+              else if (isGetFieldAtRuntime(target)) {
+                access.expression match {
+                  case access1: Access =>
+                    try {
+                      getTypeWithAccess(access1, imports)
+                      isValue = false
+                    } catch {
+                      case _: SyntaxException | AssertionError =>
+                    }
+                  case _ =>
+                }
+              }
+              if (isValue) {
+                if (target.typeOf().isInstanceOf[SClassDef] || target.isInstanceOf[SInterfaceDef]) {
+                  findMethodFromTypeWithArguements(
+                    access.lineCol,
+                    access.name,
+                    argList,
+                    target.typeOf(),
+                    target.typeOf(),
+                    SemanticProcessor.FIND_MODE_NON_STATIC,
+                    methodsToInvoke,
+                    checkSuper = true
+                  )
+                } else target.typeOf() match {
+                  case _: SAnnoDef =>
+                    if (argList.nonEmpty)
+                      throw new SyntaxException(
+                        "Annotation don't have methods with non zero parameters",
+                        access.expression.lineCol)
+                    findMethodFromTypeWithArguements(
+                      access.lineCol,
+                      access.name,
+                      argList,
+                      target.typeOf(),
+                      target.typeOf(),
+                      SemanticProcessor.FIND_MODE_NON_STATIC,
+                      methodsToInvoke,
+                      checkSuper = true
+                    )
+                    if (methodsToInvoke.isEmpty)
+                      throw new SyntaxException(
+                        s"cannot find ${access.name} in ${target.typeOf()}",
+                        access.expression.lineCol)
+                  case _: PrimitiveTypeDef =>
+                    target = boxPrimitive(target, access.expression.lineCol)
+                    findMethodFromTypeWithArguements(
+                      access.lineCol,
+                      access.name,
+                      argList,
+                      target.typeOf(),
+                      target.typeOf(),
+                      SemanticProcessor.FIND_MODE_NON_STATIC,
+                      methodsToInvoke,
+                      checkSuper = true
+                    )
+                  case _ => if (access.expression.isInstanceOf[Access]) {
+                    findMethodFromTypeWithArguements(
+                      access.lineCol,
+                      access.name,
+                      argList,
+                      scope.typeOf.orNull,
+                      target.typeOf(),
+                      SemanticProcessor.FIND_MODE_STATIC,
+                      methodsToInvoke,
+                      checkSuper = true
+                    )
+                    if (methodsToInvoke.isEmpty)
+                      throw new SyntaxException(s"cannot find static method $exp", exp.lineCol)
+                  } else {
+                    if (throwableWhenTryValue == null) {
+                      throw new SyntaxException(
+                        s"method access structure should only be (type,methodName)/((type or null,\"this\")," +
+                          s"methodName)/(null,methodName)/(value,methodName)but got ${exp.access}",
+                        access.expression.lineCol
+                      )
+                    } else
+                      throw new SyntaxException(throwableWhenTryValue.getMessage, exp.lineCol)
+                  }
+                }
+              }
+
+            }
+        }
+      }
+    }
+    if(methodsToInvoke.isEmpty && innerMethod == null){
+      var sType:STypeDef = null
+      try{
+        sType = getTypeWithAccess(access,imports)
+      }catch {
+        case _:SyntaxException | AssertionError | ClassCastException =>
+      }
+      if(sType.isInstanceOf[SClassDef]){
+
+      }
+    }
+    null
+  }
 
   def parseInsFromVariableDef(exp: VariableDef, scope: SemanticScope): Value = ???
 
@@ -1624,4 +1875,19 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
 object SemanticProcessor {
   val PARSING_CLASS = 0
   val PARSING_INTERFACE = 1
+
+  /**
+    * search for static and non-static
+    */
+  private val FIND_MODE_ANY = 0
+
+  /**
+    * only search for static
+    */
+  private val FIND_MODE_STATIC = 1
+
+  /**
+    * only search for non-static
+    */
+  private val FIND_MODE_NON_STATIC = 2
 }

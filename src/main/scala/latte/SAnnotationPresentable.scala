@@ -612,15 +612,14 @@ case class StringConstantValue(value: String) extends ConstantValue with Value {
   override def hashCode(): Int = value.hashCode
 }
 
-
-case class NullValue() extends Value{
+case class NullValue() extends Value {
   override def typeOf(): STypeDef = NullTypeDef.get()
 
   override def toString: String = "null"
 }
 
-object NullValue{
-  val nullValue =  NullValue()
+object NullValue {
+  val nullValue = NullValue()
   def get(): NullValue = nullValue
 }
 

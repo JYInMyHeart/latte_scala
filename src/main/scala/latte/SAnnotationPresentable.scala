@@ -430,7 +430,7 @@ case class LongValue(value: Long) extends PrimitiveValue with ConstantValue {
 
   override def toString: String = value.toString
 
-  override def hashCode(): Long = value
+  override def hashCode(): Int = (value ^ (value >>> 32)).toInt
 
   override def equals(obj: Any): Boolean = {
     if (obj == null || getClass != obj.getClass)
@@ -450,7 +450,7 @@ case class ShortValue(value: Short) extends PrimitiveValue {
 
   override def toString: String = value.toString
 
-  override def hashCode(): Short = value
+  override def hashCode(): Int = value.toInt
 
   override def equals(obj: Any): Boolean = {
     if (obj == null || getClass != obj.getClass)

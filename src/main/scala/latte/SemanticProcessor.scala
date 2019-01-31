@@ -251,7 +251,7 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
                       getTypeWithAccess(access1, imports)
                       isValue = false
                     } catch {
-                      case _: SyntaxException | AssertionError =>
+                      case _: SyntaxException | _: AssertionError =>
                     }
                   case _ =>
                 }
@@ -268,78 +268,78 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
                     methodsToInvoke,
                     checkSuper = true
                   )
-                } else target.typeOf() match {
-                  case _: SAnnoDef =>
-                    if (argList.nonEmpty)
-                      throw new SyntaxException(
-                        "Annotation don't have methods with non zero parameters",
-                        access.expression.lineCol)
-                    findMethodFromTypeWithArguements(
-                      access.lineCol,
-                      access.name,
-                      argList,
-                      target.typeOf(),
-                      target.typeOf(),
-                      SemanticProcessor.FIND_MODE_NON_STATIC,
-                      methodsToInvoke,
-                      checkSuper = true
-                    )
-                    if (methodsToInvoke.isEmpty)
-                      throw new SyntaxException(
-                        s"cannot find ${access.name} in ${target.typeOf()}",
-                        access.expression.lineCol)
-                  case _: PrimitiveTypeDef =>
-                    target = boxPrimitive(target, access.expression.lineCol)
-                    findMethodFromTypeWithArguements(
-                      access.lineCol,
-                      access.name,
-                      argList,
-                      target.typeOf(),
-                      target.typeOf(),
-                      SemanticProcessor.FIND_MODE_NON_STATIC,
-                      methodsToInvoke,
-                      checkSuper = true
-                    )
-                  case _ => if (access.expression.isInstanceOf[Access]) {
-                    findMethodFromTypeWithArguements(
-                      access.lineCol,
-                      access.name,
-                      argList,
-                      scope.typeOf.orNull,
-                      target.typeOf(),
-                      SemanticProcessor.FIND_MODE_STATIC,
-                      methodsToInvoke,
-                      checkSuper = true
-                    )
-                    if (methodsToInvoke.isEmpty)
-                      throw new SyntaxException(s"cannot find static method $exp", exp.lineCol)
-                  } else {
-                    if (throwableWhenTryValue == null) {
-                      throw new SyntaxException(
-                        s"method access structure should only be (type,methodName)/((type or null,\"this\")," +
-                          s"methodName)/(null,methodName)/(value,methodName)but got ${exp.access}",
-                        access.expression.lineCol
+                } else
+                  target.typeOf() match {
+                    case _: SAnnoDef =>
+                      if (argList.nonEmpty)
+                        throw new SyntaxException(
+                          "Annotation don't have methods with non zero parameters",
+                          access.expression.lineCol)
+                      findMethodFromTypeWithArguements(
+                        access.lineCol,
+                        access.name,
+                        argList,
+                        target.typeOf(),
+                        target.typeOf(),
+                        SemanticProcessor.FIND_MODE_NON_STATIC,
+                        methodsToInvoke,
+                        checkSuper = true
                       )
-                    } else
-                      throw new SyntaxException(throwableWhenTryValue.getMessage, exp.lineCol)
+                      if (methodsToInvoke.isEmpty)
+                        throw new SyntaxException(
+                          s"cannot find ${access.name} in ${target.typeOf()}",
+                          access.expression.lineCol)
+                    case _: PrimitiveTypeDef =>
+                      target = boxPrimitive(target, access.expression.lineCol)
+                      findMethodFromTypeWithArguements(
+                        access.lineCol,
+                        access.name,
+                        argList,
+                        target.typeOf(),
+                        target.typeOf(),
+                        SemanticProcessor.FIND_MODE_NON_STATIC,
+                        methodsToInvoke,
+                        checkSuper = true
+                      )
+                    case _ =>
+                      if (access.expression.isInstanceOf[Access]) {
+                        findMethodFromTypeWithArguements(
+                          access.lineCol,
+                          access.name,
+                          argList,
+                          scope.typeOf.orNull,
+                          target.typeOf(),
+                          SemanticProcessor.FIND_MODE_STATIC,
+                          methodsToInvoke,
+                          checkSuper = true
+                        )
+                        if (methodsToInvoke.isEmpty)
+                          throw new SyntaxException(s"cannot find static method $exp", exp.lineCol)
+                      } else {
+                        if (throwableWhenTryValue == null) {
+                          throw new SyntaxException(
+                            s"method access structure should only be (type,methodName)/((type or null,this)," +
+                              s"methodName)/(null,methodName)/(value,methodName)but got ${exp.access}",
+                            access.expression.lineCol
+                          )
+                        } else
+                          throw new SyntaxException(throwableWhenTryValue.getMessage, exp.lineCol)
+                      }
                   }
-                }
               }
 
             }
         }
       }
     }
-    if(methodsToInvoke.isEmpty && innerMethod == null){
-      var sType:STypeDef = null
-      try{
-        sType = getTypeWithAccess(access,imports)
-      }catch {
-        case _:SyntaxException | AssertionError | ClassCastException =>
+    if (methodsToInvoke.isEmpty && innerMethod == null) {
+      var sType: STypeDef = null
+      try {
+        sType = getTypeWithAccess(access, imports)
+      } catch {
+        case _: SyntaxException | _: AssertionError | _: ClassCastException =>
       }
-      if(sType.isInstanceOf[SClassDef]){
-
-      }
+      if (sType.isInstanceOf[SClassDef]) {}
     }
     null
   }

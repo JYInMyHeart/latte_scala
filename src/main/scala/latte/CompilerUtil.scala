@@ -132,7 +132,7 @@ object CompilerUtil {
   def isValidNameChar(c: Char): Boolean =
     isValidNameStartChar(c) || Character.isDigit(c)
 
-  def isJavaValidName(str: String): Boolean = {
+  def isJavaValidName(str: String): Boolean =
     str match {
       case x if x.isEmpty => false
       case x if javaKeys.contains(x) => false
@@ -144,7 +144,6 @@ object CompilerUtil {
         true
       case _ => false
     }
-  }
 
   def isValidName(str: String): Boolean = {
     if (str.startsWith("`") && str.endsWith("`"))
@@ -204,17 +203,16 @@ object CompilerUtil {
   def isAssign(str: String): Boolean =
     str == "=" || str == "/=" || str == "*=" || str == "+=" || str == "-=" || str == "%="
 
-  def expecting(token: String, previous: Node, got: Node): Unit = {
+  def expecting(token: String, previous: Node, got: Node): Unit =
     got match {
       case null =>
         throw new Exception(s"unexpected end ${previous.lineCol}")
       case x if !x.isInstanceOf[Element] =>
-        throw UnexpectedTokenException(token,x.getClass.getSimpleName,x.lineCol)
-      case x:Element if !x.content.endsWith(token) =>
-        throw UnexpectedTokenException(token,x.content,x.lineCol)
+        throw UnexpectedTokenException(token, x.getClass.getSimpleName, x.lineCol)
+      case x: Element if !x.content.endsWith(token) =>
+        throw UnexpectedTokenException(token, x.content, x.lineCol)
       case _ =>
     }
-  }
 
   def isPackage(element: Element): Boolean = {
     if (isValidName(element.content) && element.hasNext) {
@@ -241,8 +239,7 @@ object CompilerUtil {
       if (isValidName(a))
         indexA = binOpPriority.length
       else
-        throw new IllegalArgumentException(
-          a + " is not valid two variable operator")
+        throw new IllegalArgumentException(a + " is not valid two variable operator")
     }
 
     var indexB = findTwoVarPriority(b)
@@ -250,8 +247,7 @@ object CompilerUtil {
       if (isValidName(b))
         indexB = binOpPriority.length
       else
-        throw new IllegalArgumentException(
-          b + " is not valid two variable operator")
+        throw new IllegalArgumentException(b + " is not valid two variable operator")
     }
     indexA <= indexB
   }
@@ -279,7 +275,7 @@ object CompilerUtil {
     true
   }
 
-  def isModifier(str: String) =
+  def isModifier(str: String): Boolean =
     modifiers.contains(str)
 
   def checkMethodDef(elem: Element): Int = {
@@ -288,58 +284,49 @@ object CompilerUtil {
       var nodeAfterRightPar: Node = null
       val n1 = getNextNode(elem)
       n1 match {
-        case n: Element => {
+        case n: Element =>
           val p = n.content
           if (p == "(") {
             val n2 = getNextNode(n1)
             n2 match {
-              case nn2: ElementStartNode => {
+              case _: ElementStartNode =>
                 val n3 = getNextNode(n2)
                 n3 match {
-                  case e: Element => {
+                  case e: Element =>
                     if (e.content == ")") {
                       nodeAfterRightPar = getNextNode(n3)
                     }
-                  }
                   case _ =>
                 }
-              }
-              case nn2: Element => {
+              case nn2: Element =>
                 if (nn2.content == ")") {
                   nodeAfterRightPar = getNextNode(n2)
                 }
-              }
               case _ =>
             }
           }
-        }
         case _ =>
       }
       if (nodeAfterRightPar != null) {
         nodeAfterRightPar match {
-          case n: ElementStartNode => {
+          case _: ElementStartNode =>
             return METHOD_DEF_NORMAL
-          }
-          case n: Element => {
+          case n: Element =>
             val s = n.content
             s match {
-              case ":" => {
+              case ":" =>
                 return METHOD_DEF_TYPE
-              }
-              case "=" => {
+              case "=" =>
                 val nn = getNextNode(nodeAfterRightPar)
                 nn match {
-                  case e: Element => {
+                  case e: Element =>
                     if (e.content == "...") {
                       return METHOD_DEF_EMPTY
                     } else {
                       return METHOD_DEF_ONE_STMT
                     }
-                  }
                 }
-              }
             }
-          }
         }
       }
     }

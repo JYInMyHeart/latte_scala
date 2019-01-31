@@ -6,7 +6,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 trait SAnnotationPresentable {
-  def annos(): ListBuffer[Anno]
+  def annos(): ListBuffer[SAnno]
 }
 
 trait Value {
@@ -27,8 +27,7 @@ trait ConstantValue extends Value {
   def getByte: Array[Byte]
 }
 
-class STypeDef(val lineCol: LineCol,
-               val annos: ListBuffer[Anno]) extends SAnnotationPresentable {
+class STypeDef(val lineCol: LineCol, val annos: ListBuffer[SAnno]) extends SAnnotationPresentable {
   var pkg: String = _
   var fullName: String = ""
 
@@ -36,22 +35,43 @@ class STypeDef(val lineCol: LineCol,
     this(lineCol, ListBuffer())
   }
 
-  def isAssignableFrom(cls: STypeDef): Boolean = {
+  def isAssignableFrom(cls: STypeDef): Boolean =
     cls match {
       case null => throw new NullPointerException()
       case _: NullTypeDef =>
         !this.isInstanceOf[PrimitiveTypeDef]
       case _ => cls == this
     }
-  }
 }
 
+case class SAnno() extends Value {
+  var annoDef: SAnnoDef = _
+  var present: SAnnotationPresentable = _
+  val valueMap: mutable.HashMap[SAnnoField, Value] = mutable.HashMap()
+  val alreadyCompiledAnnotationValueMap: mutable.HashMap[String, AnyRef] = mutable.HashMap()
+
+  override def typeOf(): SAnnoDef = annoDef
+
+  override def toString: String = {
+    val sb = new StringBuilder()
+    sb.append(typeOf().fullName).append("(")
+    var isFirst = true
+    for (f <- valueMap) {
+      if (isFirst)
+        isFirst = false
+      else
+        sb.append(",")
+      sb.append(f._1.name).append("=").append(f._2)
+    }
+    sb.append(")")
+    sb.toString()
+  }
+}
 
 case class SArrayTypeDef() extends STypeDef(LineCol.SYNTHETIC) {
   var sType: STypeDef = _
   var dimension: Int = _
   fullName = if (fullName == null) rebuildFullName() else fullName
-
 
   private def rebuildFullName(): String = {
     if (null == sType) return ""
@@ -77,7 +97,6 @@ case class SArrayTypeDef() extends STypeDef(LineCol.SYNTHETIC) {
     sb.toString()
   }
 }
-
 
 case class SAnnoDef() extends STypeDef(LineCol.SYNTHETIC) {
   val annoFields: ListBuffer[SAnnoField] = ListBuffer()
@@ -105,7 +124,6 @@ case class SAnnoDef() extends STypeDef(LineCol.SYNTHETIC) {
   }
 }
 
-
 class SAnnoField() extends SMethodDef(LineCol.SYNTHETIC) {
   var sType: STypeDef = _
   var defaultValue: Value = _
@@ -117,6 +135,7 @@ class SAnnoField() extends SMethodDef(LineCol.SYNTHETIC) {
       sb.append(" default ").append(defaultValue).append(";")
     sb.toString()
   }
+
 }
 
 abstract class PrimitiveTypeDef() extends STypeDef(LineCol.SYNTHETIC)
@@ -165,7 +184,8 @@ case class DoubleTypeDef() extends PrimitiveTypeDef() {
 
   override def isAssignableFrom(cls: STypeDef): Boolean = {
     if (super.isAssignableFrom(cls)) return true
-    cls.isInstanceOf[FloatTypeDef] || cls.isInstanceOf[LongTypeDef] || FloatTypeDef.get().isAssignableFrom(cls)
+    cls.isInstanceOf[FloatTypeDef] || cls
+      .isInstanceOf[LongTypeDef] || FloatTypeDef.get().isAssignableFrom(cls)
   }
 }
 
@@ -258,7 +278,6 @@ object NullTypeDef {
   def get(): NullTypeDef = t
 }
 
-
 case class VoidType() extends STypeDef(LineCol.SYNTHETIC) {
   fullName = "void"
 }
@@ -269,25 +288,24 @@ object VoidType {
   def get(): VoidType = t
 }
 
-
 abstract class SMember(lineCol: LineCol) extends SAnnotationPresentable {
   val modifiers: ListBuffer[SModifier] = ListBuffer()
   var declaringType: STypeDef = _
-  var annos: ListBuffer[Anno] = ListBuffer()
+  var annos: ListBuffer[SAnno] = ListBuffer()
 }
 
 abstract class SInvokable(lineCol: LineCol) extends SMember(lineCol) {
   val parameters: ListBuffer[SParameter] = ListBuffer()
-  val returnType: STypeDef = null
+  var returnType: STypeDef = _
   val statements: ListBuffer[Instruction] = ListBuffer()
   val exceptionTables: ListBuffer[ExceptionTable] = ListBuffer()
 }
 
 case class SParameter() extends LeftValue with SAnnotationPresentable {
-  val annos: ListBuffer[Anno] = ListBuffer()
+  val annos: ListBuffer[SAnno] = ListBuffer()
   var name: String = _
   var sType: STypeDef = _
-  val canChange: Boolean = true
+  var canChange: Boolean = true
   var target: SInvokable = _
 
   override def typeOf(): STypeDef = sType
@@ -307,6 +325,7 @@ case class SMethodDef(lineCol: LineCol) extends SInvokable(lineCol) {
     val params = parameters.foldLeft("")(_ + "," + _)
     modifiers + temp + params + ")"
   }
+
 }
 
 case class SClassDef(override val lineCol: LineCol) extends STypeDef(lineCol) {
@@ -330,7 +349,7 @@ case class SFieldDef(lineCol: LineCol) extends SMember(lineCol) with LeftValue {
 }
 
 case class SConstructorDef(lineCol: LineCol) extends SInvokable(lineCol) {
-  override val returnType: VoidType = VoidType.get()
+  returnType = VoidType.get()
 }
 
 case class SInterfaceDef(override val lineCol: LineCol) extends STypeDef(lineCol) {
@@ -368,14 +387,13 @@ case class SInterfaceDef(override val lineCol: LineCol) extends STypeDef(lineCol
 }
 
 case class IntValue(value: Int) extends PrimitiveValue with ConstantValue {
-  override def getByte: Array[Byte] = {
+  override def getByte: Array[Byte] =
     Array(
       (value & 0xff).toByte,
       ((value & 0xff00) >> 8).toByte,
       ((value & 0xff0000) >> 16).toByte,
       ((value & 0xff000000) >> 24).toByte,
     )
-  }
 
   override def typeOf(): STypeDef = IntTypeDef.get()
 
@@ -384,7 +402,7 @@ case class IntValue(value: Int) extends PrimitiveValue with ConstantValue {
   override def hashCode(): Int = value
 
   override def equals(obj: Any): Boolean = {
-    if(obj == null || getClass != obj.getClass)
+    if (obj == null || getClass != obj.getClass)
       return false
     obj match {
       case IntValue(i) =>
@@ -395,15 +413,221 @@ case class IntValue(value: Int) extends PrimitiveValue with ConstantValue {
   }
 }
 
-case class LocalVariable(sType:STypeDef,
-                         canChange:Boolean) extends LeftValue{
+case class LongValue(value: Long) extends PrimitiveValue with ConstantValue {
+  override def getByte: Array[Byte] =
+    Array(
+      (value & 0xff).toByte,
+      ((value >> 8) & 0xff).toByte,
+      ((value >> 16) & 0xff).toByte,
+      ((value >> 24) & 0xff).toByte,
+      ((value >> 32) & 0xff).toByte,
+      ((value >> 40) & 0xff).toByte,
+      ((value >> 48) & 0xff).toByte,
+      ((value >> 56) & 0xff).toByte
+    )
+
+  override def typeOf(): STypeDef = LongTypeDef.get()
+
+  override def toString: String = value.toString
+
+  override def hashCode(): Int = (value ^ (value >>> 32)).toInt
+
+  override def equals(obj: Any): Boolean = {
+    if (obj == null || getClass != obj.getClass)
+      return false
+    obj match {
+      case LongValue(i) =>
+        i == value
+      case _ =>
+        false
+    }
+  }
+}
+
+case class ShortValue(value: Short) extends PrimitiveValue {
+
+  override def typeOf(): STypeDef = ShortTypeDef.get()
+
+  override def toString: String = value.toString
+
+  override def hashCode(): Int = value.toInt
+
+  override def equals(obj: Any): Boolean = {
+    if (obj == null || getClass != obj.getClass)
+      return false
+    obj match {
+      case ShortValue(i) =>
+        i == value
+      case _ =>
+        false
+    }
+  }
+}
+
+case class FloatValue(value: Float) extends PrimitiveValue with ConstantValue {
+  override def getByte: Array[Byte] = {
+    val data = java.lang.Float.floatToIntBits(value)
+    Array(
+      (data & 0xff).toByte,
+      ((data & 0xff00) >> 8).toByte,
+      ((data & 0xff0000) >> 16).toByte,
+      ((data & 0xff000000) >> 24).toByte,
+    )
+  }
+
+  override def typeOf(): STypeDef = FloatTypeDef.get()
+
+  override def toString: String = value.toString
+
+  override def hashCode(): Int = if (value != +0.0f) java.lang.Float.floatToIntBits(value) else 0
+
+  override def equals(obj: Any): Boolean = {
+    if (obj == null || getClass != obj.getClass)
+      return false
+    obj match {
+      case FloatValue(i) =>
+        i == value
+      case _ =>
+        false
+    }
+  }
+}
+
+case class DoubleValue(value: Double) extends PrimitiveValue with ConstantValue {
+  override def getByte: Array[Byte] = {
+    val data = java.lang.Double.doubleToLongBits(value)
+    Array(
+      (data & 0xff).toByte,
+      ((data >> 8) & 0xff).toByte,
+      ((data >> 16) & 0xff).toByte,
+      ((data >> 24) & 0xff).toByte,
+      ((data >> 32) & 0xff).toByte,
+      ((data >> 40) & 0xff).toByte,
+      ((data >> 48) & 0xff).toByte,
+      ((data >> 56) & 0xff).toByte
+    )
+  }
+
+  override def typeOf(): STypeDef = DoubleTypeDef.get()
+
+  override def toString: String = value.toString
+
+  override def hashCode(): Int = {
+    val temp = java.lang.Double.doubleToLongBits(value)
+    (temp ^ (temp >>> 32)).toInt
+  }
+
+  override def equals(obj: Any): Boolean = {
+    if (obj == null || getClass != obj.getClass)
+      return false
+    obj match {
+      case DoubleValue(i) =>
+        i == value
+      case _ =>
+        false
+    }
+  }
+}
+
+case class CharValue(value: Char) extends PrimitiveValue {
+
+  override def typeOf(): STypeDef = CharTypeDef.get()
+
+  override def toString: String = value.toString
+
+  override def hashCode(): Int = value.toInt
+
+  override def equals(obj: Any): Boolean = {
+    if (obj == null || getClass != obj.getClass)
+      return false
+    obj match {
+      case CharValue(i) =>
+        i == value
+      case _ =>
+        false
+    }
+  }
+}
+
+case class ByteValue(value: Byte) extends PrimitiveValue {
+
+  override def typeOf(): STypeDef = ByteTypeDef.get()
+
+  override def toString: String = value.toString
+
+  override def hashCode(): Int = value.toInt
+
+  override def equals(obj: Any): Boolean = {
+    if (obj == null || getClass != obj.getClass)
+      return false
+    obj match {
+      case ByteValue(i) =>
+        i == value
+      case _ =>
+        false
+    }
+  }
+}
+
+case class BoolValue(value: Boolean) extends PrimitiveValue {
+
+  override def typeOf(): STypeDef = BoolTypeDef.get()
+
+  override def toString: String = value.toString
+
+  override def hashCode(): Int = if (value) 1 else 0
+
+  override def equals(obj: Any): Boolean = {
+    if (obj == null || getClass != obj.getClass)
+      return false
+    obj match {
+      case BoolValue(i) =>
+        i == value
+      case _ =>
+        false
+    }
+  }
+
+  def getValue(): Int = if (value) 1 else 0
+}
+
+case class StringConstantValue(value: String) extends ConstantValue with Value {
+  var sType: STypeDef = _
+
+  override def getByte: Array[Byte] = value.getBytes
+
+  override def typeOf(): STypeDef = sType
+
+  override def equals(obj: Any): Boolean = {
+    if (obj == null || getClass != obj.getClass)
+      return false
+    obj match {
+      case StringConstantValue(i) =>
+        i == value
+      case _ =>
+        false
+    }
+  }
+
+  override def hashCode(): Int = value.hashCode
+}
+
+case class NullValue() extends Value {
+  override def typeOf(): STypeDef = NullTypeDef.get()
+
+  override def toString: String = "null"
+}
+
+object NullValue {
+  val nullValue = NullValue()
+  def get(): NullValue = nullValue
+}
+
+case class LocalVariable(sType: STypeDef, canChange: Boolean) extends LeftValue {
   override def typeOf(): STypeDef = sType
 }
 
-case class ExceptionTable(from: Instruction,
-                          to: Instruction,
-                          target: Instruction,
-                          sType: STypeDef)
+case class ExceptionTable(from: Instruction, to: Instruction, target: Instruction, sType: STypeDef)
 
 case class SModifier(value: Int)
 
@@ -419,7 +643,6 @@ object SModifier {
   val SYNTHETIC = SModifier(0x1000)
   val ENUM = SModifier(0x4000)
   val NATIVE = SModifier(0x0100)
-  val STRUCT = SModifier(0x0800)
+  val STRICT = SModifier(0x0800)
   val SYNCHRONIZED = SModifier(0x0200)
 }
-

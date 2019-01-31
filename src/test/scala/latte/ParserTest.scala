@@ -4,6 +4,8 @@ import java.io.{BufferedReader, StringReader}
 
 import latte.ParserTest.parse
 
+import scala.collection.mutable.ListBuffer
+
 class ParserTest extends UnitSpec {
 
   "testOperatorInSamePriority" should "1+2-3+4" in {
@@ -56,7 +58,6 @@ class ParserTest extends UnitSpec {
     assert(tvo2 == statement)
   }
 
-
   "test1Plus2Multi3Div4" should "nice" in {
     val statements = parse("1+2*3/4")
     assert(1 == statements.size)
@@ -70,7 +71,6 @@ class ParserTest extends UnitSpec {
     val tvo3 = TwoVariableOperation("+", one, tvo2, LineCol.SYNTHETIC)
     assert(tvo3 == statement)
   }
-
 
   "test1Plus2Multi3Div4Minus5" should "nice" in {
     val statements = parse("1+2*3/4-5")
@@ -88,7 +88,6 @@ class ParserTest extends UnitSpec {
     assert(tvo4 == statement)
   }
 
-
   "testPar1Plus2ParMulti3" should "nice" in {
     val statements = parse("(1+2)*3")
     assert(1 == statements.size)
@@ -102,7 +101,6 @@ class ParserTest extends UnitSpec {
 
     assert(tvo2 == statement)
   }
-
 
   "testBinOperator" should "nice" in {
     val statements = parse("1*3/(4+5)*6-(7/8+9)-10-15")
@@ -168,7 +166,6 @@ class ParserTest extends UnitSpec {
     assert(tvo2 == statement)
   }
 
-
   "testPackage" should "nice" in {
     val statements = parse("java::lang::Integer")
     assert(1 == statements.size)
@@ -196,7 +193,10 @@ class ParserTest extends UnitSpec {
     val access = Access(pkg, "String", LineCol.SYNTHETIC)
     val access2 = Access(access, "valueOf", LineCol.SYNTHETIC)
 
-    val invocation = Invocation(access2, List[Expression](BoolLiteral("true", LineCol.SYNTHETIC)), LineCol.SYNTHETIC)
+    val invocation = Invocation(
+      access2,
+      List[Expression](BoolLiteral("true", LineCol.SYNTHETIC)),
+      LineCol.SYNTHETIC)
     assert(statement == invocation)
   }
 
@@ -204,7 +204,8 @@ class ParserTest extends UnitSpec {
     val statements = parse("method()")
     assert(1 == statements.size)
     val statement = statements.head
-    val invocation = Invocation(Access(null, "method", LineCol.SYNTHETIC), List(), LineCol.SYNTHETIC)
+    val invocation =
+      Invocation(Access(null, "method", LineCol.SYNTHETIC), List(), LineCol.SYNTHETIC)
     assert(invocation == statement)
   }
 
@@ -262,7 +263,6 @@ class ParserTest extends UnitSpec {
     assert(statement == v)
   }
 
-
   "testVariableWithInitType_FullName_Init" should "nice" in {
     val statements = parse("i:java::lang::Integer=1")
     assert(1 == statements.size)
@@ -276,7 +276,6 @@ class ParserTest extends UnitSpec {
     assert(statement == v)
   }
 
-
   "testVariableWithInitType_SimpleName_Init" should "nice" in {
     val statements = parse("i:Integer=1")
     assert(1 == statements.size)
@@ -288,7 +287,6 @@ class ParserTest extends UnitSpec {
     v.init = n
     assert(statement == v)
   }
-
 
   "testVariableWithInitType_FullName_Inner_Init" should "nice" in {
     val statements = parse("i:mePackage::ClassName.Inner=1")
@@ -332,12 +330,17 @@ class ParserTest extends UnitSpec {
     assert(statement == v)
   }
 
-
   "testModifier" should "nice" in {
     val statements = parse("val i:ClassName.Inner=1+2")
     assert(1 == statements.size)
     val statement = statements.head
-    val v = VariableDef("i", Set(Modifier("val", LineCol.SYNTHETIC)), null, null, Set(), LineCol.SYNTHETIC)
+    val v = VariableDef(
+      "i",
+      Set(Modifier("val", LineCol.SYNTHETIC)),
+      null,
+      null,
+      Set(),
+      LineCol.SYNTHETIC)
     val access1 = Access(null, "ClassName", LineCol.SYNTHETIC)
     val access2 = Access(access1, "Inner", LineCol.SYNTHETIC)
     v.vType = access2
@@ -348,7 +351,6 @@ class ParserTest extends UnitSpec {
     assert(statement == v)
   }
 
-
   "testAssign" should "nice" in {
     val statements = parse("i=1\ni=2")
     assert(2 == statements.size)
@@ -358,7 +360,6 @@ class ParserTest extends UnitSpec {
     val ass = Assignment(access, "=", n, LineCol.SYNTHETIC)
     assert(ass == statement)
   }
-
 
   "testMethodNormal_Noparam" should "nice" in {
     val statements = parse(
@@ -373,9 +374,9 @@ class ParserTest extends UnitSpec {
       "method",
       Set(),
       null,
-      List(),
+      ListBuffer(),
       Set(),
-      List(v),
+      ListBuffer(v),
       LineCol.SYNTHETIC
     )
     assert(methodStatement == statement)
@@ -394,14 +395,13 @@ class ParserTest extends UnitSpec {
       "method",
       Set(),
       Access(null, "Integer", LineCol.SYNTHETIC),
-      List(),
+      ListBuffer(),
       Set(),
-      List(v),
+      ListBuffer(v),
       LineCol.SYNTHETIC
     )
     assert(methodStatement == statement)
   }
-
 
   "testMethodType_NoParam_NoStmt" should "nice" in {
     val statements = parse(
@@ -413,9 +413,9 @@ class ParserTest extends UnitSpec {
       "method",
       Set(),
       Access(null, "Integer", LineCol.SYNTHETIC),
-      List(),
+      ListBuffer(),
       Set(),
-      List(),
+      ListBuffer(),
       LineCol.SYNTHETIC
     )
     assert(methodStatement == statement)
@@ -431,9 +431,9 @@ class ParserTest extends UnitSpec {
       "method",
       Set(),
       null,
-      List(),
+      ListBuffer(),
       Set(),
-      List(),
+      ListBuffer(),
       LineCol.SYNTHETIC
     )
     assert(methodStatement == statement)
@@ -449,18 +449,15 @@ class ParserTest extends UnitSpec {
       "method",
       Set(),
       null,
-      List(),
+      ListBuffer(),
       Set(),
-      List(
-        Return(
-          NumberLiteral("123", LineCol.SYNTHETIC),
-          LineCol.SYNTHETIC)
+      ListBuffer(
+        Return(NumberLiteral("123", LineCol.SYNTHETIC), LineCol.SYNTHETIC)
       ),
       LineCol.SYNTHETIC
     )
     assert(methodStatement == statement)
   }
-
 
   "testMethodGeneral" should "nice" in {
     val statements = parse(
@@ -471,7 +468,7 @@ class ParserTest extends UnitSpec {
     val a = VariableDef("a", Set(), null, null, Set(), LineCol.SYNTHETIC)
     val b = VariableDef("b", Set(), null, null, Set(), LineCol.SYNTHETIC)
     b.vType = Access(null, "Character", LineCol.SYNTHETIC)
-    val vars = List(a, b)
+    val vars = ListBuffer(a, b)
     val assignment = Assignment(
       Access(null, "a", LineCol.SYNTHETIC),
       "=",
@@ -483,12 +480,11 @@ class ParserTest extends UnitSpec {
       Access(null, "Integer", LineCol.SYNTHETIC),
       vars,
       Set(),
-      List(assignment),
+      ListBuffer(assignment),
       LineCol.SYNTHETIC
     )
     assert(methodStatement == statement)
   }
-
 
   "testReturn" should "nice" in {
     val statements = parse(
@@ -515,8 +511,7 @@ class ParserTest extends UnitSpec {
   "testJavaName" should "nice" in {
     try {
       parse("sync=1")
-    }
-    catch {
+    } catch {
       case _: Exception =>
     }
     val statements = parse(
@@ -537,15 +532,12 @@ class ParserTest extends UnitSpec {
     val statement = statements.head
     val ifStatement = IfStatement(
       List(
-        IfPair(BoolLiteral("true", LineCol.SYNTHETIC),
-          List(),
-          LineCol.SYNTHETIC)
+        IfPair(BoolLiteral("true", LineCol.SYNTHETIC), List(), LineCol.SYNTHETIC)
       ),
       LineCol.SYNTHETIC
     )
     assert(ifStatement == statement)
   }
-
 
   "testIfBody" should "nice" in {
     val statements = parse(
@@ -556,16 +548,19 @@ class ParserTest extends UnitSpec {
     val statement = statements.head
     val ifStatement = IfStatement(
       List(
-        IfPair(BoolLiteral("true", LineCol.SYNTHETIC),
+        IfPair(
+          BoolLiteral("true", LineCol.SYNTHETIC),
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("1", LineCol.SYNTHETIC),
               Set(),
               LineCol.SYNTHETIC)
           ),
-          LineCol.SYNTHETIC)
+          LineCol.SYNTHETIC
+        )
       ),
       LineCol.SYNTHETIC
     )
@@ -586,14 +581,16 @@ class ParserTest extends UnitSpec {
         IfPair(
           BoolLiteral("true", LineCol.SYNTHETIC),
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("1", LineCol.SYNTHETIC),
               Set(),
               LineCol.SYNTHETIC)
           ),
-          LineCol.SYNTHETIC),
+          LineCol.SYNTHETIC
+        ),
         IfPair(
           Access(null, "boolval", LineCol.SYNTHETIC),
           List(),
@@ -604,7 +601,6 @@ class ParserTest extends UnitSpec {
     )
     assert(ifStatement == statement)
   }
-
 
   "testIfBodyElseIfBody" should "nice" in {
     val statements = parse(
@@ -621,18 +617,21 @@ class ParserTest extends UnitSpec {
         IfPair(
           BoolLiteral("true", LineCol.SYNTHETIC),
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("1", LineCol.SYNTHETIC),
               Set(),
               LineCol.SYNTHETIC)
           ),
-          LineCol.SYNTHETIC),
+          LineCol.SYNTHETIC
+        ),
         IfPair(
           Access(null, "boolval", LineCol.SYNTHETIC),
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("2", LineCol.SYNTHETIC),
@@ -646,7 +645,6 @@ class ParserTest extends UnitSpec {
     )
     assert(ifStatement == statement)
   }
-
 
   "testIfBodyElseIfBodyElse" should "nice" in {
     val statements = parse(
@@ -664,18 +662,21 @@ class ParserTest extends UnitSpec {
         IfPair(
           BoolLiteral("true", LineCol.SYNTHETIC),
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("1", LineCol.SYNTHETIC),
               Set(),
               LineCol.SYNTHETIC)
           ),
-          LineCol.SYNTHETIC),
+          LineCol.SYNTHETIC
+        ),
         IfPair(
           Access(null, "boolval", LineCol.SYNTHETIC),
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("2", LineCol.SYNTHETIC),
@@ -694,7 +695,6 @@ class ParserTest extends UnitSpec {
     )
     assert(ifStatement == statement)
   }
-
 
   "testIfBodyElseIfBodyElseBody" should "nice" in {
     val statements = parse(
@@ -713,18 +713,21 @@ class ParserTest extends UnitSpec {
         IfPair(
           BoolLiteral("true", LineCol.SYNTHETIC),
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("1", LineCol.SYNTHETIC),
               Set(),
               LineCol.SYNTHETIC)
           ),
-          LineCol.SYNTHETIC),
+          LineCol.SYNTHETIC
+        ),
         IfPair(
           Access(null, "boolval", LineCol.SYNTHETIC),
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("2", LineCol.SYNTHETIC),
@@ -736,7 +739,8 @@ class ParserTest extends UnitSpec {
         IfPair(
           null,
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("3", LineCol.SYNTHETIC),
@@ -750,7 +754,6 @@ class ParserTest extends UnitSpec {
     )
     assert(ifStatement == statement)
   }
-
 
   "testIfBodyElseIfBodyElseBody_1" should "nice" in {
     val statements = parse(
@@ -769,14 +772,16 @@ class ParserTest extends UnitSpec {
         IfPair(
           BoolLiteral("true", LineCol.SYNTHETIC),
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("1", LineCol.SYNTHETIC),
               Set(),
               LineCol.SYNTHETIC)
           ),
-          LineCol.SYNTHETIC),
+          LineCol.SYNTHETIC
+        ),
         IfPair(
           Access(null, "boolval1", LineCol.SYNTHETIC),
           List(),
@@ -790,7 +795,8 @@ class ParserTest extends UnitSpec {
         IfPair(
           null,
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("3", LineCol.SYNTHETIC),
@@ -823,18 +829,21 @@ class ParserTest extends UnitSpec {
         IfPair(
           BoolLiteral("true", LineCol.SYNTHETIC),
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("1", LineCol.SYNTHETIC),
               Set(),
               LineCol.SYNTHETIC)
           ),
-          LineCol.SYNTHETIC),
+          LineCol.SYNTHETIC
+        ),
         IfPair(
           Access(null, "boolval1", LineCol.SYNTHETIC),
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("2", LineCol.SYNTHETIC),
@@ -851,7 +860,8 @@ class ParserTest extends UnitSpec {
         IfPair(
           null,
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("3", LineCol.SYNTHETIC),
@@ -865,7 +875,6 @@ class ParserTest extends UnitSpec {
     )
     assert(ifStatement == statement)
   }
-
 
   "testIfBodyElseIfElseBody" should "nice" in {
     val statements = parse(
@@ -883,14 +892,16 @@ class ParserTest extends UnitSpec {
         IfPair(
           BoolLiteral("true", LineCol.SYNTHETIC),
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("1", LineCol.SYNTHETIC),
               Set(),
               LineCol.SYNTHETIC)
           ),
-          LineCol.SYNTHETIC),
+          LineCol.SYNTHETIC
+        ),
         IfPair(
           Access(null, "boolval1", LineCol.SYNTHETIC),
           List(),
@@ -899,7 +910,8 @@ class ParserTest extends UnitSpec {
         IfPair(
           null,
           List(
-            VariableDef("a",
+            VariableDef(
+              "a",
               Set(),
               null,
               NumberLiteral("3", LineCol.SYNTHETIC),
@@ -935,7 +947,8 @@ class ParserTest extends UnitSpec {
       "i",
       Access(null, "ite", LineCol.SYNTHETIC),
       List(
-        VariableDef("a",
+        VariableDef(
+          "a",
           Set(),
           null,
           NumberLiteral("1", LineCol.SYNTHETIC),
@@ -975,18 +988,8 @@ class ParserTest extends UnitSpec {
     val s = statements.head
     val lambda = Lambda(
       List(
-        VariableDef("a",
-          Set(),
-          null,
-          null,
-          Set(),
-          LineCol.SYNTHETIC),
-        VariableDef("b",
-          Set(),
-          null,
-          null,
-          Set(),
-          LineCol.SYNTHETIC)
+        VariableDef("a", Set(), null, null, Set(), LineCol.SYNTHETIC),
+        VariableDef("b", Set(), null, null, Set(), LineCol.SYNTHETIC)
       ),
       List(
         Return(
@@ -1013,12 +1016,7 @@ class ParserTest extends UnitSpec {
       List(
         Lambda(
           List(
-            VariableDef("a",
-              Set(),
-              null,
-              null,
-              Set(),
-              LineCol.SYNTHETIC),
+            VariableDef("a", Set(), null, null, Set(), LineCol.SYNTHETIC),
           ),
           List(
             Return(
@@ -1047,7 +1045,8 @@ class ParserTest extends UnitSpec {
     val s = statements.head
     val ss = StaticScope(
       List(
-        VariableDef("a",
+        VariableDef(
+          "a",
           Set(),
           null,
           NumberLiteral("1", LineCol.SYNTHETIC),
@@ -1065,13 +1064,15 @@ class ParserTest extends UnitSpec {
     val s = statements.head
     val ss = StaticScope(
       List(
-        VariableDef("a",
+        VariableDef(
+          "a",
           Set(),
           null,
           NumberLiteral("1", LineCol.SYNTHETIC),
           Set(),
           LineCol.SYNTHETIC),
-        VariableDef("b",
+        VariableDef(
+          "b",
           Set(),
           null,
           NumberLiteral("2", LineCol.SYNTHETIC),
@@ -1083,7 +1084,6 @@ class ParserTest extends UnitSpec {
     assert(ss == s)
   }
 
-
   "testClass_Arg_SuperInvocation" should "nice" in {
     val statements = parse("class C(arg):Type(arg),Type2\n    a=2")
     assert(statements.size == 1)
@@ -1092,12 +1092,7 @@ class ParserTest extends UnitSpec {
       "C",
       Set(),
       List(
-        VariableDef("arg",
-          Set(),
-          null,
-          null,
-          Set(),
-          LineCol.SYNTHETIC)
+        VariableDef("arg", Set(), null, null, Set(), LineCol.SYNTHETIC)
       ),
       Invocation(
         Access(null, "Type", LineCol.SYNTHETIC),
@@ -1105,23 +1100,23 @@ class ParserTest extends UnitSpec {
           Access(null, "arg", LineCol.SYNTHETIC)
         ),
         LineCol.SYNTHETIC
-
       ),
       List(
         Access(null, "Type2", LineCol.SYNTHETIC)
       ),
       Set(),
-      List(VariableDef("a",
-        Set(),
-        null,
-        NumberLiteral("2", LineCol.SYNTHETIC),
-        Set(),
-        LineCol.SYNTHETIC)),
+      List(
+        VariableDef(
+          "a",
+          Set(),
+          null,
+          NumberLiteral("2", LineCol.SYNTHETIC),
+          Set(),
+          LineCol.SYNTHETIC)),
       LineCol.SYNTHETIC
     )
     assert(s == c)
   }
-
 
   "testClass_Arg_SuperInvocation_Modifiers" should "nice" in {
     val statements = parse("abs class C(arg):Type(arg),Type2\n    a=2")
@@ -1129,17 +1124,13 @@ class ParserTest extends UnitSpec {
     val s = statements.head
     val c = ClassStatement(
       "C",
-      Set(Modifier(
-        "abs",
-        LineCol.SYNTHETIC
-      )),
+      Set(
+        Modifier(
+          "abs",
+          LineCol.SYNTHETIC
+        )),
       List(
-        VariableDef("arg",
-          Set(),
-          null,
-          null,
-          Set(),
-          LineCol.SYNTHETIC)
+        VariableDef("arg", Set(), null, null, Set(), LineCol.SYNTHETIC)
       ),
       Invocation(
         Access(null, "Type", LineCol.SYNTHETIC),
@@ -1147,18 +1138,19 @@ class ParserTest extends UnitSpec {
           Access(null, "arg", LineCol.SYNTHETIC)
         ),
         LineCol.SYNTHETIC
-
       ),
       List(
         Access(null, "Type2", LineCol.SYNTHETIC)
       ),
       Set(),
-      List(VariableDef("a",
-        Set(),
-        null,
-        NumberLiteral("2", LineCol.SYNTHETIC),
-        Set(),
-        LineCol.SYNTHETIC)),
+      List(
+        VariableDef(
+          "a",
+          Set(),
+          null,
+          NumberLiteral("2", LineCol.SYNTHETIC),
+          Set(),
+          LineCol.SYNTHETIC)),
       LineCol.SYNTHETIC
     )
     assert(s == c)
@@ -1199,7 +1191,6 @@ class ParserTest extends UnitSpec {
     assert(s == i)
   }
 
-
   "testInterface_super_interfaces_stmt" should "nice" in {
     val statements = parse("interface A:B,C\n    method()=...")
     assert(statements.size == 1)
@@ -1218,9 +1209,9 @@ class ParserTest extends UnitSpec {
           "method",
           Set(),
           null,
-          List(),
+          ListBuffer(),
           Set(),
-          List(),
+          ListBuffer(),
           LineCol.SYNTHETIC
         )
       ),
@@ -1230,43 +1221,28 @@ class ParserTest extends UnitSpec {
   }
 
   "testTryAll" should "nice" in {
-    val statements = parse(""
-      + "try\n"
-      + "    a=1\n"
-      + "catch e\n"
-      + "    Exception,Throwable\n"
-      + "        a=2\n"
-      + "    RuntimeException\n"
-      + "        a=3\n"
-      + "finally\n"
-      + "    a=4")
+    val statements = parse(
+      ""
+        + "try\n"
+        + "    a=1\n"
+        + "catch e\n"
+        + "    Exception,Throwable\n"
+        + "        a=2\n"
+        + "    RuntimeException\n"
+        + "        a=3\n"
+        + "finally\n"
+        + "    a=4")
     assert(statements.size == 1)
     val s = statements.head
 
-    val v1 = VariableDef("a",
-      Set(),
-      null,
-      NumberLiteral("1", LineCol.SYNTHETIC),
-      Set(),
-      LineCol.SYNTHETIC)
-    val v2 = VariableDef("a",
-      Set(),
-      null,
-      NumberLiteral("2", LineCol.SYNTHETIC),
-      Set(),
-      LineCol.SYNTHETIC)
-    val v3 = VariableDef("a",
-      Set(),
-      null,
-      NumberLiteral("3", LineCol.SYNTHETIC),
-      Set(),
-      LineCol.SYNTHETIC)
-    val v4 = VariableDef("a",
-      Set(),
-      null,
-      NumberLiteral("4", LineCol.SYNTHETIC),
-      Set(),
-      LineCol.SYNTHETIC)
+    val v1 =
+      VariableDef("a", Set(), null, NumberLiteral("1", LineCol.SYNTHETIC), Set(), LineCol.SYNTHETIC)
+    val v2 =
+      VariableDef("a", Set(), null, NumberLiteral("2", LineCol.SYNTHETIC), Set(), LineCol.SYNTHETIC)
+    val v3 =
+      VariableDef("a", Set(), null, NumberLiteral("3", LineCol.SYNTHETIC), Set(), LineCol.SYNTHETIC)
+    val v4 =
+      VariableDef("a", Set(), null, NumberLiteral("4", LineCol.SYNTHETIC), Set(), LineCol.SYNTHETIC)
 
     val t = Try(
       List(v1),
@@ -1295,28 +1271,20 @@ class ParserTest extends UnitSpec {
   }
 
   "testTryOneCatch" should "nice" in {
-    val statements = parse(""
-      + "try\n"
-      + "    a=1\n"
-      + "catch e\n"
-      + "    RuntimeException\n"
-      + "        a = 3"
-    )
+    val statements = parse(
+      ""
+        + "try\n"
+        + "    a=1\n"
+        + "catch e\n"
+        + "    RuntimeException\n"
+        + "        a = 3")
     assert(statements.size == 1)
     val s = statements.head
 
-    val v1 = VariableDef("a",
-      Set(),
-      null,
-      NumberLiteral("1", LineCol.SYNTHETIC),
-      Set(),
-      LineCol.SYNTHETIC)
-    val v2 = VariableDef("a",
-      Set(),
-      null,
-      NumberLiteral("3", LineCol.SYNTHETIC),
-      Set(),
-      LineCol.SYNTHETIC)
+    val v1 =
+      VariableDef("a", Set(), null, NumberLiteral("1", LineCol.SYNTHETIC), Set(), LineCol.SYNTHETIC)
+    val v2 =
+      VariableDef("a", Set(), null, NumberLiteral("3", LineCol.SYNTHETIC), Set(), LineCol.SYNTHETIC)
 
     val t = Try(
       List(v1),
@@ -1336,24 +1304,18 @@ class ParserTest extends UnitSpec {
     assert(s == t)
   }
 
-
   "testTryOneCatchNoProcess" should "nice" in {
-    val statements = parse(""
-      + "try\n"
-      + "    a=1\n"
-      + "catch e\n"
-      + "    RuntimeException\n"
-    )
+    val statements = parse(
+      ""
+        + "try\n"
+        + "    a=1\n"
+        + "catch e\n"
+        + "    RuntimeException\n")
     assert(statements.size == 1)
     val s = statements.head
 
-    val v1 = VariableDef("a",
-      Set(),
-      null,
-      NumberLiteral("1", LineCol.SYNTHETIC),
-      Set(),
-      LineCol.SYNTHETIC)
-
+    val v1 =
+      VariableDef("a", Set(), null, NumberLiteral("1", LineCol.SYNTHETIC), Set(), LineCol.SYNTHETIC)
 
     val t = Try(
       List(v1),
@@ -1373,31 +1335,22 @@ class ParserTest extends UnitSpec {
     assert(s == t)
   }
 
-
   "testTryTwoCatchOneProcess" should "nice" in {
-    val statements = parse(""
-      + "try\n"
-      + "    a=1\n"
-      + "catch e\n"
-      + "    Exception,Throwable\n"
-      + "    RuntimeException\n"
-      + "        a = 3"
-    )
+    val statements = parse(
+      ""
+        + "try\n"
+        + "    a=1\n"
+        + "catch e\n"
+        + "    Exception,Throwable\n"
+        + "    RuntimeException\n"
+        + "        a = 3")
     assert(statements.size == 1)
     val s = statements.head
 
-    val v1 = VariableDef("a",
-      Set(),
-      null,
-      NumberLiteral("1", LineCol.SYNTHETIC),
-      Set(),
-      LineCol.SYNTHETIC)
-    val v2 = VariableDef("a",
-      Set(),
-      null,
-      NumberLiteral("3", LineCol.SYNTHETIC),
-      Set(),
-      LineCol.SYNTHETIC)
+    val v1 =
+      VariableDef("a", Set(), null, NumberLiteral("1", LineCol.SYNTHETIC), Set(), LineCol.SYNTHETIC)
+    val v2 =
+      VariableDef("a", Set(), null, NumberLiteral("3", LineCol.SYNTHETIC), Set(), LineCol.SYNTHETIC)
 
     val t = Try(
       List(v1),
@@ -1425,28 +1378,20 @@ class ParserTest extends UnitSpec {
     assert(s == t)
   }
 
-
   "testTryFinally" should "nice" in {
-    val statements = parse(""
-      + "try\n"
-      + "    a=1\n"
-      + "finally\n"
-      + "    a=4")
+    val statements = parse(
+      ""
+        + "try\n"
+        + "    a=1\n"
+        + "finally\n"
+        + "    a=4")
     assert(statements.size == 1)
     val s = statements.head
 
-    val v1 = VariableDef("a",
-      Set(),
-      null,
-      NumberLiteral("1", LineCol.SYNTHETIC),
-      Set(),
-      LineCol.SYNTHETIC)
-    val v4 = VariableDef("a",
-      Set(),
-      null,
-      NumberLiteral("4", LineCol.SYNTHETIC),
-      Set(),
-      LineCol.SYNTHETIC)
+    val v1 =
+      VariableDef("a", Set(), null, NumberLiteral("1", LineCol.SYNTHETIC), Set(), LineCol.SYNTHETIC)
+    val v4 =
+      VariableDef("a", Set(), null, NumberLiteral("4", LineCol.SYNTHETIC), Set(), LineCol.SYNTHETIC)
 
     val t = Try(
       List(v1),
@@ -1457,7 +1402,6 @@ class ParserTest extends UnitSpec {
     )
     assert(s == t)
   }
-
 
   "testThrow" should "nice" in {
     val statements = parse("throw e")
@@ -1471,65 +1415,69 @@ class ParserTest extends UnitSpec {
     assert(s == t)
   }
 
-
   "testAnnoVariable" should "nice" in {
     val statements = parse("@Anno(abc=1)\ni=2")
     assert(statements.size == 1)
     val s = statements.head
 
-    val t = VariableDef("i",
+    val t = VariableDef(
+      "i",
       Set(),
       null,
       NumberLiteral("2", LineCol.SYNTHETIC),
       Set(
         Anno(
           Access(null, "Anno", LineCol.SYNTHETIC),
-          List(Assignment(
-            Access(null, "abc", LineCol.SYNTHETIC),
-            "=",
-            NumberLiteral("1", LineCol.SYNTHETIC),
-            LineCol.SYNTHETIC
-          )),
+          List(
+            Assignment(
+              Access(null, "abc", LineCol.SYNTHETIC),
+              "=",
+              NumberLiteral("1", LineCol.SYNTHETIC),
+              LineCol.SYNTHETIC
+            )),
           LineCol.SYNTHETIC
         )
       ),
-      LineCol.SYNTHETIC)
+      LineCol.SYNTHETIC
+    )
     assert(s == t)
   }
-
 
   "testAnnoInterface" should "nice" in {
     val statements = parse("@Anno(abc=1)\ninterface I")
     assert(statements.size == 1)
     val s = statements.head
 
-    val t = InterfaceStatement("I",
+    val t = InterfaceStatement(
+      "I",
       Set(),
       List(),
       Set(
         Anno(
           Access(null, "Anno", LineCol.SYNTHETIC),
-          List(Assignment(
-            Access(null, "abc", LineCol.SYNTHETIC),
-            "=",
-            NumberLiteral("1", LineCol.SYNTHETIC),
-            LineCol.SYNTHETIC
-          )),
+          List(
+            Assignment(
+              Access(null, "abc", LineCol.SYNTHETIC),
+              "=",
+              NumberLiteral("1", LineCol.SYNTHETIC),
+              LineCol.SYNTHETIC
+            )),
           LineCol.SYNTHETIC
         )
       ),
       List(),
-      LineCol.SYNTHETIC)
+      LineCol.SYNTHETIC
+    )
     assert(s == t)
   }
-
 
   "testAnnoClass" should "nice" in {
     val statements = parse("@Anno\nclass I")
     assert(statements.size == 1)
     val s = statements.head
 
-    val t = ClassStatement("I",
+    val t = ClassStatement(
+      "I",
       Set(),
       List(),
       null,
@@ -1551,10 +1499,11 @@ class ParserTest extends UnitSpec {
     assert(statements.size == 1)
     val s = statements.head
 
-    val t = MethodStatement("method",
+    val t = MethodStatement(
+      "method",
       Set(),
       null,
-      List(),
+      ListBuffer(),
       Set(
         Anno(
           Access(null, "Anno", LineCol.SYNTHETIC),
@@ -1562,7 +1511,7 @@ class ParserTest extends UnitSpec {
           LineCol.SYNTHETIC
         )
       ),
-      List(),
+      ListBuffer(),
       LineCol.SYNTHETIC)
     assert(s == t)
   }
@@ -1581,7 +1530,6 @@ class ParserTest extends UnitSpec {
     )
     assert(arr == s)
   }
-
 
   "testArrayExp0" should "nice" in {
     val statements = parse("[]")
@@ -1677,7 +1625,8 @@ class ParserTest extends UnitSpec {
           MapExp(
             Map[Expression, Expression](
               Access(null, "b", LineCol.SYNTHETIC) -> Access(null, "c", LineCol.SYNTHETIC),
-            ), LineCol.SYNTHETIC)
+            ),
+            LineCol.SYNTHETIC)
       ),
       LineCol.SYNTHETIC
     )
@@ -1707,7 +1656,6 @@ class ParserTest extends UnitSpec {
     assert(s == ass)
   }
 
-
   "testMapInMapAssign" should "nice" in {
     val statements = parse("map = {a:{b:c}}")
     assert(statements.size == 1)
@@ -1719,7 +1667,8 @@ class ParserTest extends UnitSpec {
           MapExp(
             Map[Expression, Expression](
               Access(null, "b", LineCol.SYNTHETIC) -> Access(null, "c", LineCol.SYNTHETIC),
-            ), LineCol.SYNTHETIC)
+            ),
+            LineCol.SYNTHETIC)
       ),
       LineCol.SYNTHETIC
     )
@@ -1736,12 +1685,13 @@ class ParserTest extends UnitSpec {
   }
 
   "testMapInMapPretty" should "nice" in {
-    val statements = parse(""
-      + "{\n"
-      + "    a:{\n"
-      + "        b:c\n"
-      + "    }\n"
-      + "}")
+    val statements = parse(
+      ""
+        + "{\n"
+        + "    a:{\n"
+        + "        b:c\n"
+        + "    }\n"
+        + "}")
     assert(statements.size == 1)
     val s = statements.head
 
@@ -1751,7 +1701,8 @@ class ParserTest extends UnitSpec {
           MapExp(
             Map[Expression, Expression](
               Access(null, "b", LineCol.SYNTHETIC) -> Access(null, "c", LineCol.SYNTHETIC),
-            ), LineCol.SYNTHETIC)
+            ),
+            LineCol.SYNTHETIC)
       ),
       LineCol.SYNTHETIC
     )
@@ -1769,7 +1720,6 @@ class ParserTest extends UnitSpec {
     )
     assert(s == p)
   }
-
 
   "testPkgDeclare2" should "nice" in {
     val statements = parse("# jes::lang::util")
@@ -1789,18 +1739,16 @@ class ParserTest extends UnitSpec {
     val s = statements.head
 
     val p = Import(
-      List(ImportDetail
-      (
-        PackageRef("jes::lang", LineCol.SYNTHETIC),
-        null,
-        importAll = true
-      )
-      ),
+      List(
+        ImportDetail(
+          PackageRef("jes::lang", LineCol.SYNTHETIC),
+          null,
+          importAll = true
+        )),
       LineCol.SYNTHETIC
     )
     assert(s == p)
   }
-
 
   "testImportClass" should "nice" in {
     val statements = parse("#> jes::lang::Cls")
@@ -1808,22 +1756,20 @@ class ParserTest extends UnitSpec {
     val s = statements.head
 
     val p = Import(
-      List(ImportDetail
-      (
-        null,
-        Access(
-          PackageRef("jes::lang", LineCol.SYNTHETIC),
-          "Cls",
-          LineCol.SYNTHETIC
-        ),
-        importAll = false
-      )
-      ),
+      List(
+        ImportDetail(
+          null,
+          Access(
+            PackageRef("jes::lang", LineCol.SYNTHETIC),
+            "Cls",
+            LineCol.SYNTHETIC
+          ),
+          importAll = false
+        )),
       LineCol.SYNTHETIC
     )
     assert(s == p)
   }
-
 
   "testImportClassAll" should "nice" in {
     val statements = parse("#> jes::lang::Cls._")
@@ -1831,22 +1777,20 @@ class ParserTest extends UnitSpec {
     val s = statements.head
 
     val p = Import(
-      List(ImportDetail
-      (
-        null,
-        Access(
-          PackageRef("jes::lang", LineCol.SYNTHETIC),
-          "Cls",
-          LineCol.SYNTHETIC
-        ),
-        importAll = true
-      )
-      ),
+      List(
+        ImportDetail(
+          null,
+          Access(
+            PackageRef("jes::lang", LineCol.SYNTHETIC),
+            "Cls",
+            LineCol.SYNTHETIC
+          ),
+          importAll = true
+        )),
       LineCol.SYNTHETIC
     )
     assert(s == p)
   }
-
 
   "testImportInnerClass" should "nice" in {
     val statements = parse("#> jes::lang::Cls.Inner")
@@ -1854,26 +1798,24 @@ class ParserTest extends UnitSpec {
     val s = statements.head
 
     val p = Import(
-      List(ImportDetail
-      (
-        null,
-        Access(
+      List(
+        ImportDetail(
+          null,
           Access(
-            PackageRef("jes::lang", LineCol.SYNTHETIC),
-            "Cls",
+            Access(
+              PackageRef("jes::lang", LineCol.SYNTHETIC),
+              "Cls",
+              LineCol.SYNTHETIC
+            ),
+            "Inner",
             LineCol.SYNTHETIC
           ),
-          "Inner",
-          LineCol.SYNTHETIC
-        ),
-        importAll = false
-      )
-      ),
+          importAll = false
+        )),
       LineCol.SYNTHETIC
     )
     assert(s == p)
   }
-
 
   "testImportInnerClassAll" should "nice" in {
     val statements = parse("#> jes::lang::Cls.Inner._")
@@ -1881,26 +1823,24 @@ class ParserTest extends UnitSpec {
     val s = statements.head
 
     val p = Import(
-      List(ImportDetail
-      (
-        null,
-        Access(
+      List(
+        ImportDetail(
+          null,
           Access(
-            PackageRef("jes::lang", LineCol.SYNTHETIC),
-            "Cls",
+            Access(
+              PackageRef("jes::lang", LineCol.SYNTHETIC),
+              "Cls",
+              LineCol.SYNTHETIC
+            ),
+            "Inner",
             LineCol.SYNTHETIC
           ),
-          "Inner",
-          LineCol.SYNTHETIC
-        ),
-        importAll = true
-      )
-      ),
+          importAll = true
+        )),
       LineCol.SYNTHETIC
     )
     assert(s == p)
   }
-
 
   "testImportClassAllNoPKG" should "nice" in {
     val statements = parse("#> Cls._")
@@ -1908,22 +1848,20 @@ class ParserTest extends UnitSpec {
     val s = statements.head
 
     val p = Import(
-      List(ImportDetail
-      (
-        null,
-        Access(
+      List(
+        ImportDetail(
           null,
-          "Cls",
-          LineCol.SYNTHETIC
-        ),
-        importAll = true
-      )
-      ),
+          Access(
+            null,
+            "Cls",
+            LineCol.SYNTHETIC
+          ),
+          importAll = true
+        )),
       LineCol.SYNTHETIC
     )
     assert(s == p)
   }
-
 
   "testImportInnerClassAllNoPKG" should "nice" in {
     val statements = parse("#> Cls.Inner._")
@@ -1931,26 +1869,24 @@ class ParserTest extends UnitSpec {
     val s = statements.head
 
     val p = Import(
-      List(ImportDetail
-      (
-        null,
-        Access(
+      List(
+        ImportDetail(
+          null,
           Access(
-            null,
-            "Cls",
+            Access(
+              null,
+              "Cls",
+              LineCol.SYNTHETIC
+            ),
+            "Inner",
             LineCol.SYNTHETIC
           ),
-          "Inner",
-          LineCol.SYNTHETIC
-        ),
-        importAll = true
-      )
-      ),
+          importAll = true
+        )),
       LineCol.SYNTHETIC
     )
     assert(s == p)
   }
-
 
   "testImportInnerClassNoPKG" should "nice" in {
     val statements = parse("#> Cls.Inner")
@@ -1958,31 +1894,30 @@ class ParserTest extends UnitSpec {
     val s = statements.head
 
     val p = Import(
-      List(ImportDetail
-      (
-        null,
-        Access(
+      List(
+        ImportDetail(
+          null,
           Access(
-            null,
-            "Cls",
+            Access(
+              null,
+              "Cls",
+              LineCol.SYNTHETIC
+            ),
+            "Inner",
             LineCol.SYNTHETIC
           ),
-          "Inner",
-          LineCol.SYNTHETIC
-        ),
-        importAll = false
-      )
-      ),
+          importAll = false
+        )),
       LineCol.SYNTHETIC
     )
     assert(s == p)
   }
 
-
   "testWhile" should "nice" in {
-    val statements = parse("" +
-      "while true\n" +
-      "    1")
+    val statements = parse(
+      "" +
+        "while true\n" +
+        "    1")
     assert(statements.size == 1)
     val s = statements.head
 
@@ -1997,10 +1932,11 @@ class ParserTest extends UnitSpec {
   }
 
   "testDoWhile" should "nice" in {
-    val statements = parse("" +
-      "do\n" +
-      "    1\n" +
-      "while true")
+    val statements = parse(
+      "" +
+        "do\n" +
+        "    1\n" +
+        "while true")
     assert(statements.size == 1)
     val s = statements.head
 
@@ -2014,11 +1950,11 @@ class ParserTest extends UnitSpec {
     assert(w == s)
   }
 
-
   "testAnnoArray" should "nice" in {
-    val statements = parse("" +
-      "@Anno(a=[1,2])\n" +
-      "i=2")
+    val statements = parse(
+      "" +
+        "@Anno(a=[1,2])\n" +
+        "i=2")
     assert(statements.size == 1)
     val s = statements.head
 
@@ -2035,8 +1971,7 @@ class ParserTest extends UnitSpec {
               Access(null, "a", LineCol.SYNTHETIC),
               "=",
               ArrayExp(
-                List(NumberLiteral("1", LineCol.SYNTHETIC),
-                  NumberLiteral("2", LineCol.SYNTHETIC)),
+                List(NumberLiteral("1", LineCol.SYNTHETIC), NumberLiteral("2", LineCol.SYNTHETIC)),
                 LineCol.SYNTHETIC
               ),
               LineCol.SYNTHETIC
@@ -2051,9 +1986,10 @@ class ParserTest extends UnitSpec {
   }
 
   "testAnnoNoAssign" should "nice" in {
-    val statements = parse("" +
-      "@Anno([1,2])\n" +
-      "i=2")
+    val statements = parse(
+      "" +
+        "@Anno([1,2])\n" +
+        "i=2")
     assert(statements.size == 1)
     val s = statements.head
 
@@ -2070,8 +2006,7 @@ class ParserTest extends UnitSpec {
               Access(null, "value", LineCol.SYNTHETIC),
               "=",
               ArrayExp(
-                List(NumberLiteral("1", LineCol.SYNTHETIC),
-                  NumberLiteral("2", LineCol.SYNTHETIC)),
+                List(NumberLiteral("1", LineCol.SYNTHETIC), NumberLiteral("2", LineCol.SYNTHETIC)),
                 LineCol.SYNTHETIC
               ),
               LineCol.SYNTHETIC
@@ -2090,8 +2025,8 @@ class ParserTest extends UnitSpec {
     assert(statements.size == 1)
     val s = statements.head
     val p = Procedure(
-      List(Return(NumberLiteral("1", LineCol.SYNTHETIC), LineCol.SYNTHETIC))
-      , LineCol.SYNTHETIC
+      List(Return(NumberLiteral("1", LineCol.SYNTHETIC), LineCol.SYNTHETIC)),
+      LineCol.SYNTHETIC
     )
     assert(s == p)
   }
@@ -2115,8 +2050,8 @@ class ParserTest extends UnitSpec {
           Set(),
           LineCol.SYNTHETIC
         ),
-        Return(Access(null, "i", LineCol.SYNTHETIC), LineCol.SYNTHETIC))
-      , LineCol.SYNTHETIC
+        Return(Access(null, "i", LineCol.SYNTHETIC), LineCol.SYNTHETIC)),
+      LineCol.SYNTHETIC
     )
     assert(s == p)
   }
@@ -2240,9 +2175,9 @@ class ParserTest extends UnitSpec {
       "method",
       Set(),
       null,
-      List(),
+      ListBuffer(),
       Set(),
-      List(
+      ListBuffer(
         Pass(LineCol.SYNTHETIC)
       ),
       LineCol.SYNTHETIC
@@ -2259,7 +2194,6 @@ class ParserTest extends UnitSpec {
 
     assert(s == Null(LineCol.SYNTHETIC))
   }
-
 
   "testAsType" should "nice" in {
     val statements = parse(
@@ -2278,7 +2212,6 @@ class ParserTest extends UnitSpec {
     )
     assert(s == a)
   }
-
 
   "testUndefined" should "nice" in {
     val statements = parse(
@@ -2314,14 +2247,18 @@ class ParserTest extends UnitSpec {
     val i = Invocation(
       Access(
         Access(
-          null, "a", LineCol.SYNTHETIC
+          null,
+          "a",
+          LineCol.SYNTHETIC
         ),
         "op",
         LineCol.SYNTHETIC
       ),
       List(
         Access(
-          null, "b", LineCol.SYNTHETIC
+          null,
+          "b",
+          LineCol.SYNTHETIC
         )
       ),
       LineCol.SYNTHETIC
@@ -2332,7 +2269,9 @@ class ParserTest extends UnitSpec {
     val i1 = Invocation(
       Access(
         Access(
-          null, "a", LineCol.SYNTHETIC
+          null,
+          "a",
+          LineCol.SYNTHETIC
         ),
         "op",
         LineCol.SYNTHETIC
@@ -2342,7 +2281,6 @@ class ParserTest extends UnitSpec {
     )
     assert(s1 == i1)
   }
-
 
   "testOperatorLikeInvocation2" should "nice" in {
     val statements = parse(
@@ -2355,8 +2293,9 @@ class ParserTest extends UnitSpec {
       Access(
         Invocation(
           Access(
-            Access(null, "db", null)
-            , "select", LineCol.SYNTHETIC
+            Access(null, "db", null),
+            "select",
+            LineCol.SYNTHETIC
           ),
           List(
             Access(null, "a", null),
@@ -2373,9 +2312,6 @@ class ParserTest extends UnitSpec {
     )
     assert(s == i)
   }
-
-
-
 
 }
 

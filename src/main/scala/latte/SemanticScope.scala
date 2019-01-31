@@ -4,15 +4,12 @@ import latte.Ins.This
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-
-class SemanticScope(parent: SemanticScope,
-                    sTypeDef: STypeDef) {
-
-  case class MethodRecorder(method: SMethodDef,
-                            paramCount: Int)
-
-  val leftValueMap: mutable.LinkedHashMap[String, LeftValue] = mutable.LinkedHashMap[String, LeftValue]()
-  val innerMethodMap: mutable.HashMap[String, MethodRecorder] = mutable.HashMap[String, MethodRecorder]()
+case class MethodRecorder(method: SMethodDef, paramCount: Int)
+class SemanticScope(val parent: SemanticScope, val sTypeDef: STypeDef) {
+  val leftValueMap: mutable.LinkedHashMap[String, LeftValue] =
+    mutable.LinkedHashMap[String, LeftValue]()
+  val innerMethodMap: mutable.HashMap[String, MethodRecorder] =
+    mutable.HashMap[String, MethodRecorder]()
   var aThis: This = _
 
   def this(parent: SemanticScope) = {
@@ -23,14 +20,13 @@ class SemanticScope(parent: SemanticScope,
     this(null, sTypeDef)
   }
 
-  def getLeftValue(name: String): Option[LeftValue] = {
+  def getLeftValue(name: String): Option[LeftValue] =
     if (leftValueMap.contains(name))
       Some(leftValueMap(name))
     else if (parent != null)
       parent.getLeftValue(name)
     else
       None
-  }
 
   def getLocalVariables: mutable.LinkedHashMap[String, STypeDef] = {
     val map: mutable.LinkedHashMap[String, STypeDef] = mutable.LinkedHashMap()
@@ -40,15 +36,11 @@ class SemanticScope(parent: SemanticScope,
     map
   }
 
-  def putLeftValue(name: String,
-                   v: LeftValue): Unit = {
+  def putLeftValue(name: String, v: LeftValue): Unit =
     leftValueMap += name -> v
-  }
 
-  def addMethodRef(name: String,
-                   innerMethod: MethodRecorder): Unit = {
+  def addMethodRef(name: String, innerMethod: MethodRecorder): Unit =
     innerMethodMap += name -> innerMethod
-  }
 
   def getLeftValues(count: Int): ListBuffer[LeftValue] = {
     val list = ListBuffer[LeftValue]()
@@ -61,23 +53,21 @@ class SemanticScope(parent: SemanticScope,
     list
   }
 
-  def typeOf: Option[STypeDef] = {
+  def typeOf: Option[STypeDef] =
     if (sTypeDef != null)
       Some(sTypeDef)
     else if (parent != null)
       parent.typeOf
     else
       None
-  }
 
-  def getThis: Option[This] = {
+  def getThis: Option[This] =
     if (aThis != null)
       Some(aThis)
     else if (parent != null)
       parent.getThis
     else
       None
-  }
 
   def getIndex(leftValue: LeftValue): Option[Int] = {
     if (parent != null) {
@@ -94,10 +84,8 @@ class SemanticScope(parent: SemanticScope,
 
   def generateTempName: String = {
     var i = 0
-    while (getLeftValue(s"*$i").nonEmpty)
-      i += 1
+    while (getLeftValue(s"*$i").nonEmpty) i += 1
     s"*$i"
   }
-
 
 }

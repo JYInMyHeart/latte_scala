@@ -4,6 +4,8 @@ import java.io.{BufferedReader, StringReader}
 
 import latte.ParserComposeTest.parse
 
+import scala.collection.mutable.ListBuffer
+
 class ParserComposeTest extends UnitSpec {
   "test2VarOperatorAndAccessAndPar" should "be nice" in {
     val statements = parse(
@@ -25,7 +27,6 @@ class ParserComposeTest extends UnitSpec {
     assert(s == tvo)
   }
 
-
   "testAnnotationOnWrongPosition" should "be bad" in {
     try {
       val statements = parse(
@@ -39,8 +40,7 @@ class ParserComposeTest extends UnitSpec {
   "testModifierOnWrongPosition" should "be bad" in {
     try {
       parse("pri 1")
-    }
-    catch {
+    } catch {
       case _: SyntaxException =>
     }
   }
@@ -58,10 +58,7 @@ class ParserComposeTest extends UnitSpec {
         NumberLiteral("1", LineCol.SYNTHETIC),
         Access(
           Access(
-            Access(
-              null,
-              "a",
-              LineCol.SYNTHETIC),
+            Access(null, "a", LineCol.SYNTHETIC),
             "b",
             LineCol.SYNTHETIC
           ),
@@ -91,7 +88,9 @@ class ParserComposeTest extends UnitSpec {
         Invocation(
           Access(
             Access(
-              null, "list", LineCol.SYNTHETIC
+              null,
+              "list",
+              LineCol.SYNTHETIC
             ),
             "get",
             LineCol.SYNTHETIC
@@ -138,23 +137,25 @@ class ParserComposeTest extends UnitSpec {
                     NumberLiteral("5", LineCol.SYNTHETIC),
                     LineCol.SYNTHETIC
                   )
-                ), LineCol.SYNTHETIC
+                ),
+                LineCol.SYNTHETIC
               )),
               LineCol.SYNTHETIC
             ),
-
             Return(
               NumberLiteral("2", LineCol.SYNTHETIC),
               LineCol.SYNTHETIC
             )
-          ), LineCol.SYNTHETIC
-        ), LineCol.SYNTHETIC
-      ), NumberLiteral("2", LineCol.SYNTHETIC)
-      , LineCol.SYNTHETIC
+          ),
+          LineCol.SYNTHETIC
+        ),
+        LineCol.SYNTHETIC
+      ),
+      NumberLiteral("2", LineCol.SYNTHETIC),
+      LineCol.SYNTHETIC
     )
     assert(tvo == s)
   }
-
 
   "testMethodMultipleAnnotation" should "be nice" in {
     val statements = parse(
@@ -172,11 +173,12 @@ class ParserComposeTest extends UnitSpec {
       "method",
       Set(
         Modifier(
-          "pub", LineCol.SYNTHETIC
+          "pub",
+          LineCol.SYNTHETIC
         )
       ),
       Access(null, "Unit", LineCol.SYNTHETIC),
-      List(
+      ListBuffer(
         VariableDef(
           "arg0",
           Set(),
@@ -206,12 +208,13 @@ class ParserComposeTest extends UnitSpec {
           LineCol.SYNTHETIC
         )
       ),
-      Set(Anno(
-        Access(null, "Anno", LineCol.SYNTHETIC),
-        List(),
-        LineCol.SYNTHETIC
-      )),
-      List(),
+      Set(
+        Anno(
+          Access(null, "Anno", LineCol.SYNTHETIC),
+          List(),
+          LineCol.SYNTHETIC
+        )),
+      ListBuffer(),
       LineCol.SYNTHETIC
     )
     assert(s == m)
@@ -221,8 +224,7 @@ class ParserComposeTest extends UnitSpec {
   "testMethodDefInitVal" should "be bad" in {
     try {
       parse("method(arg0,arg1=1,arg2)=0")
-    }
-    catch {
+    } catch {
       case _: SyntaxException =>
     }
   }
@@ -230,8 +232,7 @@ class ParserComposeTest extends UnitSpec {
   "testMethodDefInitValPass" should "be bad" in {
     try {
       parse("method(arg0,arg1=1,arg2=2)=0")
-    }
-    catch {
+    } catch {
       case _: SyntaxException =>
     }
   }
@@ -239,8 +240,7 @@ class ParserComposeTest extends UnitSpec {
   "testClassDefInitValPass" should "be bad" in {
     try {
       parse("class C(arg0,arg1=1,arg2=2)")
-    }
-    catch {
+    } catch {
       case _: SyntaxException => fail()
     }
   }
@@ -314,9 +314,9 @@ class ParserComposeTest extends UnitSpec {
       "method",
       Set(),
       Access(null, "bool", LineCol.SYNTHETIC),
-      List(),
+      ListBuffer(),
       Set(),
-      List(),
+      ListBuffer(),
       LineCol.SYNTHETIC
     )
     assert(s == v)
@@ -362,7 +362,8 @@ class ParserComposeTest extends UnitSpec {
     )
     val v = ArrayExp(
       List(
-        m1, m2
+        m1,
+        m2
       ),
       LineCol.SYNTHETIC
     )
@@ -438,12 +439,7 @@ class ParserComposeTest extends UnitSpec {
       "i",
       Set(),
       Access(
-        Access(
-          PackageRef(
-            "java::util",
-            LineCol.SYNTHETIC),
-          "List",
-          LineCol.SYNTHETIC),
+        Access(PackageRef("java::util", LineCol.SYNTHETIC), "List", LineCol.SYNTHETIC),
         "[]",
         LineCol.SYNTHETIC),
       null,
@@ -478,7 +474,9 @@ class ParserComposeTest extends UnitSpec {
       Access(
         Index(
           Access(
-            null, "a", LineCol.SYNTHETIC
+            null,
+            "a",
+            LineCol.SYNTHETIC
           ),
           List(NumberLiteral("1", LineCol.SYNTHETIC)),
           LineCol.SYNTHETIC
@@ -529,13 +527,14 @@ class ParserComposeTest extends UnitSpec {
   }
 
   "testMap_OperatorLikeInvocation" should "be nice" in {
-    val statements = parse("" +
-      "{\n" +
-      "    'a':a op b\n" +
-      "    a op b:'b'\n" +
-      "    'a':a op\n" +
-      "    a op:'b'\n" +
-      "}")
+    val statements = parse(
+      "" +
+        "{\n" +
+        "    'a':a op b\n" +
+        "    a op b:'b'\n" +
+        "    'a':a op\n" +
+        "    a op:'b'\n" +
+        "}")
 
     assert(statements.size == 1)
     val s = statements.head
@@ -544,26 +543,27 @@ class ParserComposeTest extends UnitSpec {
         StringLiteral("'a'", LineCol.SYNTHETIC) ->
           Invocation(
             Access(Access(null, "a", LineCol.SYNTHETIC), "op", LineCol.SYNTHETIC),
-            List(Access(null, "b", LineCol.SYNTHETIC)), LineCol.SYNTHETIC
+            List(Access(null, "b", LineCol.SYNTHETIC)),
+            LineCol.SYNTHETIC
           ),
-
         Invocation(
           Access(Access(null, "a", LineCol.SYNTHETIC), "op", LineCol.SYNTHETIC),
-          List(Access(null, "b", LineCol.SYNTHETIC)), LineCol.SYNTHETIC
+          List(Access(null, "b", LineCol.SYNTHETIC)),
+          LineCol.SYNTHETIC
         ) ->
           StringLiteral("'b'", LineCol.SYNTHETIC),
-
         StringLiteral("'a'", LineCol.SYNTHETIC) ->
           Invocation(
             Access(Access(null, "a", LineCol.SYNTHETIC), "op", LineCol.SYNTHETIC),
-            List(), LineCol.SYNTHETIC),
-
+            List(),
+            LineCol.SYNTHETIC),
         Invocation(
           Access(Access(null, "a", LineCol.SYNTHETIC), "op", LineCol.SYNTHETIC),
-          List(), LineCol.SYNTHETIC
+          List(),
+          LineCol.SYNTHETIC
         ) ->
-          StringLiteral("'b'", LineCol.SYNTHETIC)),
-
+          StringLiteral("'b'", LineCol.SYNTHETIC)
+      ),
       LineCol.SYNTHETIC
     )
     assert(s == m)
@@ -612,7 +612,6 @@ class ParserComposeTest extends UnitSpec {
     )
     assert(i == s)
   }
-
 
 }
 

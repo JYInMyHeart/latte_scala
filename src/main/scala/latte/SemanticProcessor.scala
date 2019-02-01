@@ -122,7 +122,7 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
   def findMethodFromTypeWithArguements(
       lineCol: LineCol,
       name: String,
-      argList: List[Value],
+      argList: ListBuffer[Value],
       value: STypeDef,
       typeOf: STypeDef,
       FIND_MODE_ANY: Int,
@@ -131,9 +131,12 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
 
   def isGetFieldAtRuntime(target: Value): Boolean = ???
 
+  def getInvokeDynamicBootstrapMethod(): SInvokable = ???
+
   def parseValueFromInvocation(exp: Invocation, scope: SemanticScope): Value = {
     assert(scope.typeOf.orNull.isInstanceOf[SClassDef])
-    val argList = for (arg <- exp.args) yield parseValueFromExpression(arg, null, scope)
+    val listTemp = for (arg <- exp.args) yield parseValueFromExpression(arg, null, scope)
+    val argList = ListBuffer(listTemp:_*)
     val methodsToInvoke: ListBuffer[SMethodDef] = ListBuffer()
     var innerMethod: MethodRecorder = null
     var target: Value = null
@@ -339,7 +342,59 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
       } catch {
         case _: SyntaxException | _: AssertionError | _: ClassCastException =>
       }
-      if (sType.isInstanceOf[SClassDef]) {}
+      sType match {
+        case classDef: SClassDef =>
+          for (con <- classDef.constructors) {
+            val innerLoop = new Breaks
+            innerLoop.breakable {
+              val params = con.parameters
+              if (argList.size == params.size) {
+                for (i <- argList.indices) {
+                  var v = argList(i)
+                  val param = params(i)
+                  if (!param.sType.isAssignableFrom(v.typeOf())) {
+                    if (!param.sType.isInstanceOf[PrimitiveTypeDef]
+                      && v.typeOf().isInstanceOf[PrimitiveTypeDef]) {
+                      v = boxPrimitive(v, LineCol.SYNTHETIC)
+                      if (!param.sType.isAssignableFrom(v.typeOf())) {
+                        innerLoop.break()
+                      }
+                    } else {
+                      innerLoop.break()
+                    }
+                  }
+                }
+                val aNew = New(con, exp.lineCol)
+                //todo
+//                argList = castArgsForMethodInvoke(argList, con.parameters, exp.lineCol)
+                aNew.args ++= argList
+                return aNew
+              }
+            }
+          }
+
+        case _ =>
+      }
+    }
+    if(target == null) target = scope.aThis
+    if(methodsToInvoke.isEmpty && innerMethod == null){
+      if(target == null){
+        if(scope.aThis == null)
+          throw new SyntaxException("invoke dynamic only perform on instances",exp.lineCol)
+        else {
+          argList.+=:(scope.aThis)
+        }
+      }else{
+        argList.+=:(target)
+      }
+      InvokeDynamic(
+        getInvokeDynamicBootstrapMethod(),
+        access.name,
+        argList,
+        getTypeWithName("java.lang.Object",exp.lineCol),
+        Dynamic.INVOKE_STATIC,
+        exp.lineCol
+      )
     }
     null
   }

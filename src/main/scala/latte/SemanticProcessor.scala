@@ -471,15 +471,66 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
 
   def findFieldFromClassDef(
       fieldName: String,
-      theType: STypeDef,
+      theClass: SClassDef,
       sType: STypeDef,
       mode: Int,
-      checkSuper: Boolean): SFieldDef = ???
+      checkSuper: Boolean): SFieldDef = {
+    for (f <- theClass.fields) {
+      val loop = new Breaks
+      loop.breakable {
+        if (mode == SemanticProcessor.FIND_MODE_STATIC)
+          if (!f.modifiers.contains(SModifier.STATIC))
+            loop.break()
+          else if (mode == SemanticProcessor.FIND_MODE_NON_STATIC)
+            if (f.modifiers.contains(SModifier.STATIC))
+              loop.break()
+
+        if (f.name == fieldName) {
+          if (f.modifiers.contains(SModifier.PUBLIC)) return f
+          else if (f.modifiers.contains(SModifier.PROTECTED)) {
+            if (theClass.isAssignableFrom(sType)
+              || theClass.pkg == sType.pkg)
+              return f
+          } else if (f.modifiers.contains(SModifier.PRIVATE)) {
+            if (theClass == sType) return f
+          } else if (theClass.pkg == sType.pkg) return f
+        }
+      }
+    }
+
+    if (checkSuper) {
+      var f: SFieldDef = null
+      if (theClass.parent != null) {
+        f = findFieldFromClassDef(fieldName, theClass.parent, sType, mode, true)
+      }
+      if (null == f) {
+        if (mode != SemanticProcessor.FIND_MODE_NON_STATIC) {
+          for (i <- theClass.superInterfaces) {
+            if (f != null) return f
+            f = findFieldFromInterfaceDef(fieldName, i, true)
+          }
+        }
+      }
+    }
+    null
+  }
 
   def findFieldFromInterfaceDef(
       fieldName: String,
-      theType: STypeDef,
-      checkSuper: Boolean): SFieldDef = ???
+      theInterface: SInterfaceDef,
+      checkSuper: Boolean): SFieldDef = {
+    for (f <- theInterface.fields) {
+      if (f.name == fieldName) return f
+    }
+    if (checkSuper) {
+      var f: SFieldDef = null
+      for (i <- theInterface.superInterfaces) {
+        if (f != null) return f
+        f = findFieldFromInterfaceDef(fieldName, i, true)
+      }
+    }
+    null
+  }
   def parseValueFromAccess(exp: Access, scope: SemanticScope): Value = ???
 
   def parseValueFromIndex(exp: Index, scope: SemanticScope): Value = ???

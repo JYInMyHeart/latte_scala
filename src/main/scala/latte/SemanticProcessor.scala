@@ -409,14 +409,77 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
 
     val field = findFieldFromTypeDef(
       exp.name,
-      scope.typeOf,
-      scope.typeOf,
+      scope.typeOf.orNull,
+      scope.typeOf.orNull,
       if (scope.aThis == null) SemanticProcessor.FIND_MODE_STATIC
       else SemanticProcessor.FIND_MODE_ANY,
-      false)
+      checkSuper = false
+    )
 
+    if (field == null) {
+      if (scope.getLeftValue(exp.name) == null) {
+        val canChange = !exp.modifiers.exists(_.modifier == "val")
+        val localVariable = LocalVariable(sType, canChange)
+        scope.putLeftValue(exp.name, localVariable)
+      } else
+        throw new SyntaxException(s"${exp.name} is already defined", exp.lineCol)
+    }
+
+    if (exp.init != null) {
+      val v = parseValueFromExpression(
+        exp.init,
+        sType,
+        scope
+      )
+
+      val pack = ValuePack()
+      if (field != null) {
+        if (field.modifiers.contains(SModifier.STATIC)) {
+          pack.instructions += PutStatic(field, v, exp.lineCol)
+          val getStatic = GetStatic(field, exp.lineCol)
+          pack.instructions += getStatic
+        } else {
+          pack.instructions += PutField(field, scope.aThis, v, exp.lineCol)
+          val getField = GetField(field, exp.lineCol, scope.aThis)
+          pack.instructions += getField
+        }
+      } else {
+        val localVariable = scope.getLeftValue(exp.name).asInstanceOf[LocalVariable]
+        pack.instructions += new TStore(localVariable, v, scope, exp.lineCol)
+        val tLoad = new TLoad(localVariable, scope, exp.lineCol)
+        pack.instructions += tLoad
+      }
+      return pack
+    }
+    null
   }
 
+  def findFieldFromTypeDef(
+      fieldName: String,
+      theType: STypeDef,
+      sType: STypeDef,
+      mode: Int,
+      checkSuper: Boolean): SFieldDef =
+    theType match {
+      case s: SClassDef =>
+        findFieldFromClassDef(fieldName, theType.asInstanceOf[SClassDef], sType, mode, checkSuper)
+      case s: SInterfaceDef =>
+        findFieldFromInterfaceDef(fieldName, theType.asInstanceOf[SInterfaceDef], checkSuper)
+      case _ =>
+        throw new LtBug(s"the type to get field from cannot be $theType")
+    }
+
+  def findFieldFromClassDef(
+      fieldName: String,
+      theType: STypeDef,
+      sType: STypeDef,
+      mode: Int,
+      checkSuper: Boolean): SFieldDef = ???
+
+  def findFieldFromInterfaceDef(
+      fieldName: String,
+      theType: STypeDef,
+      checkSuper: Boolean): SFieldDef = ???
   def parseValueFromAccess(exp: Access, scope: SemanticScope): Value = ???
 
   def parseValueFromIndex(exp: Index, scope: SemanticScope): Value = ???

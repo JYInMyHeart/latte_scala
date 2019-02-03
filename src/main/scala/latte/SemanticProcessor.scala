@@ -136,7 +136,7 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
   def parseValueFromInvocation(exp: Invocation, scope: SemanticScope): Value = {
     assert(scope.typeOf.orNull.isInstanceOf[SClassDef])
     val listTemp = for (arg <- exp.args) yield parseValueFromExpression(arg, null, scope)
-    val argList = ListBuffer(listTemp:_*)
+    val argList = ListBuffer(listTemp: _*)
     val methodsToInvoke: ListBuffer[SMethodDef] = ListBuffer()
     var innerMethod: MethodRecorder = null
     var target: Value = null
@@ -376,22 +376,22 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
         case _ =>
       }
     }
-    if(target == null) target = scope.aThis
-    if(methodsToInvoke.isEmpty && innerMethod == null){
-      if(target == null){
-        if(scope.aThis == null)
-          throw new SyntaxException("invoke dynamic only perform on instances",exp.lineCol)
+    if (target == null) target = scope.aThis
+    if (methodsToInvoke.isEmpty && innerMethod == null) {
+      if (target == null) {
+        if (scope.aThis == null)
+          throw new SyntaxException("invoke dynamic only perform on instances", exp.lineCol)
         else {
           argList.+=:(scope.aThis)
         }
-      }else{
+      } else {
         argList.+=:(target)
       }
       InvokeDynamic(
         getInvokeDynamicBootstrapMethod(),
         access.name,
         argList,
-        getTypeWithName("java.lang.Object",exp.lineCol),
+        getTypeWithName("java.lang.Object", exp.lineCol),
         Dynamic.INVOKE_STATIC,
         exp.lineCol
       )
@@ -399,7 +399,23 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
     null
   }
 
-  def parseInsFromVariableDef(exp: VariableDef, scope: SemanticScope): Value = ???
+  def parseInsFromVariableDef(exp: VariableDef, scope: SemanticScope): Value = {
+    val imports = fileNameToImport(exp.lineCol.fileName)
+    val sType =
+      if (exp.vType == null)
+        getTypeWithName("java.lang.Object", exp.lineCol)
+      else
+        getTypeWithAccess(exp.vType, imports)
+
+    val field = findFieldFromTypeDef(
+      exp.name,
+      scope.typeOf,
+      scope.typeOf,
+      if (scope.aThis == null) SemanticProcessor.FIND_MODE_STATIC
+      else SemanticProcessor.FIND_MODE_ANY,
+      false)
+
+  }
 
   def parseValueFromAccess(exp: Access, scope: SemanticScope): Value = ???
 

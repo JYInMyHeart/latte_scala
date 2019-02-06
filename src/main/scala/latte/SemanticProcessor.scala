@@ -1,7 +1,9 @@
 package latte
 
-import java.lang.annotation.ElementType
-import java.lang.reflect.{AnnotatedElement, Member}
+import java.lang.annotation.{Annotation, ElementType}
+import java.lang.reflect.{AnnotatedElement, InvocationTargetException, Member}
+import java.util
+import java.util.NoSuchElementException
 
 import latte.Ins._
 import latte.SModifier.{ABSTRACT, FINAL, PUBLIC}
@@ -28,6 +30,8 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
   private val fileNameToImport: mutable.HashMap[String, ListBuffer[Import]] = mutable.HashMap()
   private val typeDefSet: mutable.HashSet[STypeDef] = mutable.HashSet()
   private val annotationRecorder: mutable.HashMap[SAnno, Anno] = mutable.HashMap()
+  private var invokeDynamicBootstrapMethod: SMethodDef = _
+  private val typesAlreadyDoneOverrideCheck: mutable.HashSet[STypeDef] = mutable.HashSet()
 
   private lazy val langCastToThrowable: SMethodDef =
     getTypeWithName("lt.lang.Lang", LineCol.SYNTHETIC)
@@ -131,12 +135,48 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
 
   def isGetFieldAtRuntime(target: Value): Boolean = ???
 
-  def getInvokeDynamicBootstrapMethod(): SInvokable = ???
+  def getInvokeDynamicBootstrapMethod(): SMethodDef = {
+    if (invokeDynamicBootstrapMethod == null) {
+      val indyType = getTypeWithName("lt.lang.Dynamic", LineCol.SYNTHETIC).asInstanceOf[SClassDef]
+      var indyMethod: SMethodDef = null
+      val loop = new Breaks
+      loop.breakable {
+
+        for (m <- indyType.methods) {
+          if (m.name == "bootstrap" && m.parameters.size == 3) {
+            val parameters = m.parameters
+
+            if (parameters.head.typeOf().fullName == "java.lang.invoke.MethodHandles$Lookup"
+              && parameters(1).typeOf().fullName == "java.lang.String"
+              && parameters.last.typeOf().fullName == "java.lang.invoke.MethodType") {
+              indyMethod = m
+              loop.break()
+            }
+          }
+        }
+      }
+      if (indyMethod == null)
+        throw new LtBug(
+          "bootstrap method should exist. " +
+            "Lt.lang.Dynamic.bootstrap(" +
+            "java.lang.invoke.MethodHandles.Lookup," +
+            "java.lang.String,java.lang.invoke.MethodType)")
+      invokeDynamicBootstrapMethod = indyMethod
+    }
+    invokeDynamicBootstrapMethod
+  }
+
+  def castArgsForMethodInvoke(
+      argList: ListBuffer[Value],
+      parameters: ListBuffer[SParameter],
+      lineCol: LineCol): ListBuffer[Value] =
+    ListBuffer(
+      (for (i <- parameters.indices) yield cast(parameters(i).typeOf(), argList(i), lineCol)): _*)
 
   def parseValueFromInvocation(exp: Invocation, scope: SemanticScope): Value = {
     assert(scope.typeOf.orNull.isInstanceOf[SClassDef])
     val listTemp = for (arg <- exp.args) yield parseValueFromExpression(arg, null, scope)
-    val argList = ListBuffer(listTemp: _*)
+    var argList = ListBuffer(listTemp: _*)
     val methodsToInvoke: ListBuffer[SMethodDef] = ListBuffer()
     var innerMethod: MethodRecorder = null
     var target: Value = null
@@ -366,7 +406,7 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
                 }
                 val aNew = New(con, exp.lineCol)
                 //todo
-//                argList = castArgsForMethodInvoke(argList, con.parameters, exp.lineCol)
+                argList = castArgsForMethodInvoke(argList, con.parameters, exp.lineCol)
                 aNew.args ++= argList
                 return aNew
               }
@@ -803,9 +843,120 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
       superInterfaces: ListBuffer[SInterfaceDef],
       buffer: ListBuffer[Nothing]): Unit = ???
 
-  def checkOverride(s: STypeDef) = ???
+  def findMethodWithSameSignature(method: SMethodDef, methods: ListBuffer[SMethodDef]): SMethodDef =
+    ???
 
-  def parseValueFromObject(o: AnyRef) = ???
+  def checkOverride(s: STypeDef): Unit = {
+    if (typesAlreadyDoneOverrideCheck.contains(s)) return
+    val q = mutable.Queue[SInterfaceDef]()
+    s match {
+      case i: SClassDef =>
+        for (method <- i.methods) {
+          var parent = i.parent
+          var overriddenMethod: SMethodDef = null
+          val loop = new Breaks
+          loop.breakable {
+            while (parent != null) {
+              overriddenMethod = findMethodWithSameSignature(method, parent.methods)
+              if (overriddenMethod == null) {
+                q.clear()
+                q ++= parent.superInterfaces
+                while (q.nonEmpty) {
+                  val ii = q.dequeue()
+                  overriddenMethod = findMethodWithSameSignature(method, ii.methods)
+                  if (overriddenMethod != null) loop.break()
+                  q ++= ii.superInterfaces
+                }
+              } else loop.break()
+              parent = parent.parent
+            }
+          }
+          if (overriddenMethod == null) {
+            val interfaceDefs = mutable.Queue[SInterfaceDef]()
+            interfaceDefs ++= i.superInterfaces
+            while (interfaceDefs.nonEmpty) {
+              val ii = interfaceDefs.dequeue()
+              overriddenMethod = findMethodWithSameSignature(method, ii.methods)
+              if (overriddenMethod != null) {
+                overriddenMethod.overRidden += method
+                method.overRide += overriddenMethod
+              }
+              interfaceDefs ++= ii.superInterfaces
+            }
+          }
+        }
+      case i: SInterfaceDef =>
+        for (method <- i.methods) {
+          q.clear()
+          q ++= i.superInterfaces
+          while (q.nonEmpty) {
+            val in = q.dequeue()
+            val m = findMethodWithSameSignature(method, in.methods)
+            if (m != null) {
+              method.overRide += m
+              m.overRidden += method
+            }
+            q ++= in.superInterfaces
+          }
+        }
+      case _ =>
+        throw new IllegalArgumentException(s"wrong STypeDefType ${s.getClass}")
+    }
+  }
+
+  def parseValueFromObject(o: Any): Value =
+    o match {
+      case i: Int => IntValue(i.intValue())
+      case i: Long => LongValue(i.longValue())
+      case i: Char => CharValue(i.charValue())
+      case i: Short => ShortValue(i.shortValue())
+      case i: Byte => ByteValue(i.byteValue())
+      case i: Boolean => BoolValue(i.booleanValue())
+      case i: Float => FloatValue(i.floatValue())
+      case i: Double => DoubleValue(i.doubleValue())
+      case i: String =>
+        val v = StringConstantValue(i)
+        v.sType = getTypeWithName("java.lang.String", LineCol.SYNTHETIC)
+        v
+      case i if i.getClass.isEnum =>
+        val e = EnumValue()
+        e.sType = getTypeWithName(i.getClass.getName, LineCol.SYNTHETIC)
+        e.enumStr = i.toString
+        e
+      case i: Class[_] =>
+        val c = ClassValue()
+        c.className = i.getName
+        c.sType = getTypeWithName("java.lang.Class", LineCol.SYNTHETIC)
+        c
+      case i: Annotation =>
+        val a = SAnno()
+        val annoClas = i.getClass.getInterfaces.head
+        a.annoDef = getTypeWithName(annoClas.getName, LineCol.SYNTHETIC).asInstanceOf[SAnnoDef]
+        val map: mutable.HashMap[SAnnoField, Value] = mutable.HashMap()
+        for (f <- a.typeOf().annoFields) {
+          try {
+            val obj = annoClas.getMethod(f.name).invoke(i)
+            val v = parseValueFromObject(obj)
+            map += f -> v
+          } catch {
+            case e: IllegalAccessException | NoSuchElementException | InvocationTargetException =>
+              throw new LtBug(e)
+          }
+        }
+        a.valueMap ++= map
+        a
+      case i if i.getClass.isArray =>
+        assert(!i.getClass.getComponentType.isArray)
+        val arr = SArrayValue()
+        val values = i.asInstanceOf[Array[_]].map(parseValueFromObject).toList
+        arr.sType =
+          getTypeWithName(i.getClass.getName, LineCol.SYNTHETIC).asInstanceOf[SArrayTypeDef]
+        arr.dimension = 1
+        arr.values = values
+        arr
+      case i @ _ =>
+        throw new IllegalArgumentException(s"cannot parse $i into Value")
+    }
 
   def parseAnnoValues(annos: ListBuffer[SAnno]): Unit =
     for (sAnno <- annos) {

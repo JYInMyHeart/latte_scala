@@ -623,6 +623,39 @@ object NullValue {
   def get(): NullValue = nullValue
 }
 
+case class EnumValue() extends Value {
+  var sType: STypeDef = _
+  var enumStr: String = _
+  override def typeOf(): STypeDef = sType
+
+  override def toString: String =
+    s"${sType.fullName}.$enumStr"
+}
+
+case class ClassValue() extends Value with ConstantValue {
+  var sType: STypeDef = _
+  var className: String = _
+
+  override def typeOf(): STypeDef = sType
+
+  override def getByte: Array[Byte] =
+    className.replace(".", "/").getBytes()
+
+  override def toString: String =
+    s"ClassValue($className)"
+}
+
+case class SArrayValue() extends Value {
+  var dimension: Int = _
+  var values: List[Value] = List()
+  var sType: SArrayTypeDef = _
+
+  override def typeOf(): STypeDef = sType
+
+  override def toString: String =
+    values.toString()
+}
+
 case class LocalVariable(sType: STypeDef, canChange: Boolean) extends LeftValue {
   override def typeOf(): STypeDef = sType
 }

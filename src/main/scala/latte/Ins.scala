@@ -314,4 +314,25 @@ object Ins {
     val Istore = 0x36
   }
 
+  case class ValuePack() extends Value with Instruction {
+    val instructions: ListBuffer[Instruction] = ListBuffer()
+    var sType: STypeDef = _
+    override def typeOf(): STypeDef =
+      if (sType == null) {
+        if (instructions.isEmpty)
+          return null
+        val ins = instructions.last
+        ins match {
+          case value: Value => value.typeOf()
+          case _ => null
+        }
+      } else
+        sType
+
+    override def lineCol(): LineCol =
+      if (instructions.isEmpty) LineCol.SYNTHETIC
+      else instructions.last.lineCol()
+
+  }
+
 }

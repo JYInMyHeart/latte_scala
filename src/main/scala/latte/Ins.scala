@@ -78,7 +78,7 @@ object Ins {
 
   case class IfEq(condition: Value, gotoIns: Instruction, lineCol: LineCol) extends Instruction {}
 
-  case class IfNe(condition: Value, gotoIns: Instruction, lineCol: LineCol) extends Instruction {}
+  case class IfNe(condition: Value, var gotoIns: Instruction, lineCol: LineCol) extends Instruction {}
 
   class Invoke(val invokable: SInvokable, val lineCol: LineCol) extends Instruction with Value {
     val arguments: ListBuffer[Value] = ListBuffer[Value]()

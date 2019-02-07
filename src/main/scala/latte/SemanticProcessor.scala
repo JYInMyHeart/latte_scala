@@ -939,8 +939,8 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
             val v = parseValueFromObject(obj)
             map += f -> v
           } catch {
-            case e: IllegalAccessException | NoSuchElementException | InvocationTargetException =>
-              throw new LtBug(e)
+            case _: IllegalAccessException | _:NoSuchElementException | _:InvocationTargetException =>
+              throw new LtBug("exception")
           }
         }
         a.valueMap ++= map
@@ -1138,23 +1138,101 @@ class SemanticProcessor(mapOfStatements: mutable.HashMap[String, List[Statement]
   def parseInstructionFromIf(
       e: IfStatement,
       returnType: STypeDef,
-      constructorScope: SemanticScope,
+      scope: SemanticScope,
       instructions: ListBuffer[Instruction],
-      exceptionTables: ListBuffer[ExceptionTable]): Unit = ???
+      exceptionTables: ListBuffer[ExceptionTable]): Unit = {
+    val instructionList = ListBuffer[Instruction]()
+    val nop = Nop(LineCol.SYNTHETIC)
+    val gotoNop = Goto(nop)
+    for(ifPair <- e.ifs){
+      val ins = ListBuffer[Instruction]()
+      ifPair.body.foreach( x =>
+        parseStatement(
+          x,
+          returnType,
+          scope,
+          ins,
+          exceptionTables,
+          dontParseMethod = false
+        )
+      )
+      instructionList ++= ins
+      instructionList += gotoNop
+      if(ifPair.condition == null){
+        if(ins.isEmpty){
+          val aGoto = Goto(nop)
+          instructions += aGoto
+        }else{
+          val i = ins.head
+          val aGoto = Goto(i)
+          instructions += aGoto
+        }
+      }else{
+        val condition = parseValueFromExpression(ifPair.condition,BoolTypeDef.get(),scope)
+        if(ins.isEmpty){
+          val ifNe = IfNe(condition,nop,ifPair.lineCol)
+          instructions += ifNe
+        }else{
+          val i = ins.head
+          val ifNe = IfNe(condition,i,ifPair.lineCol)
+          instructions += ifNe
+        }
+      }
+    }
+    instructions ++= instructionList
+    instructions += nop
+  }
 
   def parseInstructionFromWhile(
-      e: WhileStatement,
+      aWhile: WhileStatement,
       returnType: STypeDef,
-      constructorScope: SemanticScope,
+      scope: SemanticScope,
       instructions: ListBuffer[Instruction],
-      exceptionTables: ListBuffer[ExceptionTable]): Unit = ???
+      exceptionTables: ListBuffer[ExceptionTable]): Unit = {
+    val ins = ListBuffer[Instruction]()
+    aWhile.statements.foreach(
+      parseStatement(
+        _,
+        returnType,
+        scope,
+        ins,
+        exceptionTables,
+        dontParseMethod = false
+      )
+    )
+    val condition = parseValueFromExpression(
+      aWhile.condition,
+      BoolTypeDef.get(),
+      scope
+    )
+    if(aWhile.doWhile){
+      instructions ++= ins
+      if(ins.isEmpty){
+        val ifNe = IfNe(condition,null,aWhile.lineCol)
+        ifNe.gotoIns = ifNe
+        instructions += ifNe
+      }else{
+        val ifNe = IfNe(condition,ins.head,aWhile.lineCol)
+        instructions += ifNe
+      }
+    }else{
+      val nop = Nop(LineCol.SYNTHETIC)
+      val ifEq = IfEq(condition,nop,aWhile.lineCol)
+      instructions += ifEq
+      instructions ++= ins
+      instructions += Goto(ifEq)
+      instructions += nop
+    }
+  }
 
   def parseInstructionFromFor(
-      e: ForStatement,
+      aFor: ForStatement,
       returnType: STypeDef,
-      constructorScope: SemanticScope,
+      scope: SemanticScope,
       instructions: ListBuffer[Instruction],
-      exceptionTables: ListBuffer[ExceptionTable]): Unit = ???
+      exceptionTables: ListBuffer[ExceptionTable]): Unit = {
+//    val getIterator = InvokeStatic()
+  }
 
   def parseInstructionFromTry(
       e: Try,
